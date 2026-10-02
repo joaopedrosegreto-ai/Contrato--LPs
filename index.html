@@ -1,0 +1,926 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<meta name="theme-color" content="#0A0A0A" />
+<link rel="icon" href="assets/logo-malta.png" />
+<meta name="description" content="Contrato digital de desenvolvimento web com assinatura eletrônica e pagamento via PIX." />
+<title>Contrato Digital | Malta Business</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+:root{
+  --bg:#0a0a0a; --bg-2:#0f0f0f; --white:#f3f2ef; --grey:#8d8d8a; --grey-2:#5a5a58;
+  --line:rgba(243,242,239,.12); --line-2:rgba(243,242,239,.22); --field:rgba(243,242,239,.035);
+  --err:#e5826f; --ease:cubic-bezier(.7,0,.15,1);
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--white);font-family:Archivo,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+body{min-height:100vh;padding:0 16px 80px}
+::selection{background:var(--white);color:var(--bg)}
+button,input,select,textarea{font:inherit;color:inherit}
+.wrap{max-width:560px;margin:0 auto}
+.wrap.wide{max-width:780px}
+.mono{font-family:var(--mono)}
+
+/* topo — igual ao site */
+.top{display:flex;align-items:center;justify-content:space-between;padding:22px 0 18px}
+.top img{height:30px;width:auto;display:block}
+.top a.wa{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--white);text-decoration:none;display:inline-flex;align-items:center;gap:8px}
+.top a.wa::after{content:"";width:6px;height:6px;background:var(--white)}
+.top a.wa:hover{color:var(--grey)}
+.bar-meta{display:flex;justify-content:space-between;gap:12px;padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:34px}
+.eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--grey);display:inline-flex;align-items:center;gap:.7em}
+.eyebrow::before{content:"";width:5px;height:5px;background:var(--white);flex:0 0 5px}
+.eyebrow.r{color:var(--grey-2)}.eyebrow.r::before{display:none}
+@media(max-width:520px){.bar-meta .eyebrow.r{display:none}}
+
+/* stepper */
+.stepper{margin:0 0 38px}
+.bar{height:1px;background:var(--line)}
+.bar i{display:block;height:1px;background:var(--white);transition:width .8s var(--ease)}
+.dots{display:grid;grid-template-columns:repeat(4,1fr);margin-top:12px}
+.dot{display:flex;gap:8px;align-items:baseline;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey-2)}
+.dot b{font-weight:500}
+.dot.on,.dot.done{color:var(--white)}
+.dot.done b{color:var(--grey)}
+@media(max-width:460px){.dot span{display:none}}
+
+/* títulos: leve + pesado, como o hero do site */
+.head{margin-bottom:28px}
+.head h2{font-family:Archivo;font-size:clamp(2.1rem,8vw,3rem);line-height:1.02;letter-spacing:-.035em;margin-top:14px}
+.head h2 .l{display:block;font-weight:300;color:var(--grey)}
+.head h2 .b{display:block;font-weight:800;color:var(--white)}
+.head p{color:var(--grey);font-size:.95rem;margin-top:14px;line-height:1.5;max-width:46ch}
+
+/* cards (como .plan do site) */
+.card{border:1px solid var(--line);border-radius:12px;padding:26px 24px;background:linear-gradient(180deg,rgba(255,255,255,.025),transparent)}
+.card+.card{margin-top:14px}
+.card.feat{border-color:var(--white);background:linear-gradient(180deg,rgba(255,255,255,.06),transparent)}
+.sec{margin-bottom:16px}
+.sec h3{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--grey)}
+.divider{height:1px;background:var(--line);margin:22px 0}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:1fr 1fr}
+.g3{grid-template-columns:1fr 1fr 1fr}
+@media(max-width:560px){.g2,.g3{grid-template-columns:1fr}}
+label.f{display:block}
+label.f > span{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey);margin:0 0 8px 2px}
+.in{width:100%;background:var(--field);border:1px solid var(--line);border-radius:10px;padding:13px 14px;font-size:15px;outline:none;transition:border-color .3s}
+.in::placeholder{color:var(--grey-2)}
+.in:focus{border-color:var(--white)}
+.in.bad{border-color:var(--err)}
+textarea.in{resize:vertical;min-height:76px}
+select.in{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--grey) 50%),linear-gradient(135deg,var(--grey) 50%,transparent 50%);background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px;background-repeat:no-repeat}
+select.in option{background:#151515}
+
+/* botões pill */
+.btn{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;border-radius:100px;padding:17px 26px;font-family:Archivo;font-weight:600;font-size:14px;border:1px solid var(--line-2);cursor:pointer;transition:.4s var(--ease);text-decoration:none}
+.btn::after{content:"→";font-weight:400;transition:transform .4s var(--ease)}
+.btn:hover::after{transform:translateX(4px)}
+.btn.primary{background:var(--white);color:var(--bg);border-color:var(--white)}
+.btn.primary:hover{background:transparent;color:var(--white)}
+.btn.ghost{background:transparent;color:var(--white)}
+.btn.ghost::after{content:none}
+.btn.ghost:hover{background:var(--white);color:var(--bg);border-color:var(--white)}
+.btn[disabled]{opacity:.3;pointer-events:none}
+.row{display:flex;gap:10px;margin-top:20px}
+.row .btn.ghost{flex:0 0 34%}
+.mini{background:none;border:1px solid var(--line);border-radius:100px;color:var(--grey);font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:7px 12px;cursor:pointer}
+.mini:hover{color:var(--white);border-color:var(--line-2)}
+
+/* resumo */
+.kv{display:flex;justify-content:space-between;gap:12px;padding:11px 0;border-bottom:1px solid var(--line);font-size:14px}
+.kv:last-child{border-bottom:0}
+.kv span{color:var(--grey)}
+.kv b{font-weight:600;text-align:right}
+.big{font-family:Archivo;font-weight:800;font-size:clamp(2.2rem,8vw,3rem);letter-spacing:-.03em;line-height:1}
+.tag{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey)}
+ul.scope{list-style:none;display:grid;gap:13px}
+ul.scope li{display:flex;gap:11px;font-size:.95rem;line-height:1.42}
+ul.scope li::before{content:"";flex:0 0 16px;height:16px;margin-top:2px;border-radius:50%;background:var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%230a0a0a' d='M9 16.2l-3.5-3.5L4 14.2l5 5 11-11-1.4-1.4z'/%3E%3C/svg%3E") center/11px no-repeat}
+
+/* contrato */
+.contract{max-height:52vh;overflow:auto;padding-right:10px;font-size:13.5px;line-height:1.72;color:#cfcdc8}
+.contract h4{font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--white);margin:22px 0 8px}
+.contract h4:first-child{margin-top:0}
+.contract p{margin-bottom:8px;text-align:justify}
+.contract::-webkit-scrollbar{width:3px}.contract::-webkit-scrollbar-thumb{background:var(--line-2)}
+.check{display:flex;gap:12px;align-items:flex-start;cursor:pointer;font-size:14px;line-height:1.5;color:#cfcdc8}
+.check input{appearance:none;flex:0 0 20px;height:20px;border:1px solid var(--line-2);border-radius:6px;margin-top:1px;display:grid;place-items:center;cursor:pointer}
+.check input:checked{background:var(--white);border-color:var(--white)}
+.check input:checked::after{content:"";width:9px;height:5px;border:2px solid var(--bg);border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
+
+/* opções de pagamento */
+.opts{display:grid;gap:10px}
+.opt{display:flex;gap:14px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:16px;cursor:pointer;transition:border-color .3s,background .3s}
+.opt input{display:none}
+.opt .r{flex:0 0 18px;height:18px;border-radius:50%;border:1px solid var(--grey-2)}
+.opt:hover{border-color:var(--line-2)}
+.opt.sel{border-color:var(--white);background:linear-gradient(180deg,rgba(255,255,255,.06),transparent)}
+.opt.sel .r{border:5px solid var(--white)}
+.opt .t{flex:1}
+.opt .t b{display:block;font-size:14.5px;font-weight:600}
+.opt .t small{display:block;color:var(--grey);font-size:12px;margin-top:3px}
+.opt .v{font-weight:800;font-size:16px;letter-spacing:-.01em;white-space:nowrap}
+
+/* assinatura */
+.sig{position:relative;background:var(--white);border-radius:12px;height:190px;touch-action:none;overflow:hidden}
+.sig canvas{width:100%;height:100%;display:block;cursor:crosshair}
+.sig .ph{position:absolute;inset:auto 0 16px;text-align:center;color:#9a9a96;font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;pointer-events:none}
+.sig .ln{position:absolute;left:24px;right:24px;bottom:40px;border-bottom:1px solid #d6d5d1;pointer-events:none}
+
+/* pix */
+.pix{background:var(--white);color:var(--bg);border-radius:12px;padding:22px;text-align:center}
+.pix #qr{display:inline-block;padding:10px;background:#fff;border-radius:10px;margin:14px 0}
+.pix #qr img,.pix #qr canvas{display:block}
+.copy{display:flex;gap:8px;margin-top:8px}
+.copy input{flex:1;min-width:0;background:#e9e8e4;border:0;border-radius:100px;padding:11px 14px;font-family:var(--mono);font-size:10.5px;color:#333}
+.copy button{border:0;border-radius:100px;background:var(--bg);color:var(--white);padding:0 18px;font-weight:600;font-size:13px;cursor:pointer}
+
+.note{font-size:13px;color:var(--grey);line-height:1.55}
+.center{text-align:center}
+.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}.mt20{margin-top:20px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--white);color:var(--bg);padding:12px 18px;border-radius:100px;font-size:13px;font-weight:600;opacity:0;transition:.4s var(--ease);pointer-events:none;z-index:50;max-width:calc(100% - 32px)}
+.toast.show{opacity:1;transform:translateX(-50%)}
+.foot{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.foot a{color:var(--grey);text-decoration:none;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase}
+.foot a:hover{color:var(--white)}
+.fade{animation:fade .7s var(--ease)}
+@keyframes fade{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+/* admin */
+.presets{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.preset{border:1px solid var(--line);background:transparent;border-radius:12px;padding:16px 14px;cursor:pointer;text-align:left;transition:border-color .3s}
+.preset:hover{border-color:var(--line-2)}
+.preset b{display:block;font-size:14px;font-weight:700}
+.preset small{color:var(--grey);font-size:12px}
+.preset.sel{border-color:var(--white);background:linear-gradient(180deg,rgba(255,255,255,.06),transparent)}
+.items{display:grid;gap:8px}
+.item{display:flex;gap:10px;align-items:center;background:var(--field);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+.item input[type=text]{flex:1;background:none;border:0;outline:none;font-size:14px;min-width:0}
+.item .x{background:none;border:0;color:var(--grey-2);cursor:pointer;font-size:18px;line-height:1;padding:2px 4px}
+.item .x:hover{color:var(--err)}
+.toggle{display:flex;align-items:center;gap:12px;font-size:14px;cursor:pointer}
+.toggle input{appearance:none;width:36px;height:20px;border-radius:20px;background:var(--line);position:relative;cursor:pointer;flex:0 0 36px;transition:.3s}
+.toggle input::after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:var(--grey);transition:.3s var(--ease)}
+.toggle input:checked{background:var(--white)}
+.toggle input:checked::after{left:19px;background:var(--bg)}
+.payrow{display:grid;grid-template-columns:1fr 110px;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line)}
+.payrow:last-child{border-bottom:0}
+.linkbox{word-break:break-all;font-family:var(--mono);font-size:11px;color:var(--grey);background:var(--field);border:1px solid var(--line);border-radius:10px;padding:12px;max-height:110px;overflow:auto}
+.hist{display:grid;gap:8px}
+.hist a{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;color:var(--white);text-decoration:none;padding:12px 14px;border:1px solid var(--line);border-radius:10px;transition:border-color .3s}
+.hist a:hover{border-color:var(--line-2)}
+.hist a span{color:var(--grey);font-family:var(--mono);font-size:11px}
+details summary{cursor:pointer;list-style:none}
+details summary::-webkit-details-marker{display:none}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   MALTA BUSINESS · Contrato digital de desenvolvimento web
+   - #admin  -> monta a proposta e gera o link
+   - #c=...  -> link do cliente (proposta codificada no próprio link)
+   ============================================================ */
+
+const DEFAULT_CONTRATADA = {
+  nome: "JOAO PEDRO FERREIRA MALTA",
+  marca: "Malta Business",
+  doc: "63.593.320/0001-12",
+  cidade: "Belo Horizonte",
+  uf: "MG",
+  pix: "397a1238-4a52-487a-b2c6-971ab2dc6d3d",
+  whats: "(31) 8763-7599",
+  email: ""
+};
+
+const PRESETS = {
+  lp: {
+    nome: "Landing Page", desc: "Página única de conversão", prazo: 15,
+    itens: [
+      "Landing page de página única com até 8 seções",
+      "Layout exclusivo alinhado à identidade visual da marca",
+      "Versão 100% responsiva (celular, tablet e desktop)",
+      "Estrutura de copy orientada à conversão",
+      "Botão de WhatsApp e/ou formulário de captação de leads",
+      "Instalação de Pixel Meta, Google Analytics 4 e Google Tag Manager",
+      "SEO on-page básico (títulos, descrições e performance)",
+      "Configuração de domínio, hospedagem e certificado SSL",
+      "Publicação do projeto no ar"
+    ]
+  },
+  site: {
+    nome: "Site Institucional", desc: "Até 5 páginas", prazo: 30,
+    itens: [
+      "Site institucional com até 5 páginas (ex.: Home, Sobre, Serviços, Portfólio e Contato)",
+      "Layout exclusivo alinhado à identidade visual da marca",
+      "Versão 100% responsiva (celular, tablet e desktop)",
+      "Painel para edição de textos e imagens",
+      "Formulário de contato e integração com WhatsApp",
+      "Integração com Google Maps e redes sociais",
+      "SEO on-page e cadastro no Google Search Console",
+      "Instalação de Google Analytics 4 e Pixel Meta",
+      "Configuração de domínio, hospedagem e certificado SSL",
+      "Treinamento online de uso do painel (1 hora)"
+    ]
+  },
+  ecom: {
+    nome: "Loja Virtual", desc: "E-commerce completo", prazo: 45,
+    itens: [
+      "Loja virtual com cadastro inicial de até 50 produtos",
+      "Layout exclusivo alinhado à identidade visual da marca",
+      "Versão 100% responsiva (celular, tablet e desktop)",
+      "Carrinho, checkout e cálculo de frete",
+      "Integração com meios de pagamento (PIX, cartão e boleto)",
+      "Painel administrativo de pedidos, produtos e estoque",
+      "SEO on-page, Google Analytics 4 e Pixel Meta",
+      "Configuração de domínio, hospedagem e certificado SSL",
+      "Treinamento online de uso da loja (1 hora)"
+    ]
+  },
+  sistema: {
+    nome: "Sistema Web", desc: "Aplicação sob medida", prazo: 60,
+    itens: [
+      "Levantamento de requisitos e documento de escopo",
+      "Interface (front-end) responsiva e exclusiva",
+      "Back-end, banco de dados e autenticação de usuários",
+      "Painel administrativo",
+      "Integrações via API conforme escopo aprovado",
+      "Publicação em servidor/nuvem",
+      "Testes e homologação junto ao CONTRATANTE"
+    ]
+  },
+  custom: { nome: "Personalizado", desc: "Monte do zero", prazo: 20, itens: [] }
+};
+
+/* ---------------- utils ---------------- */
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const brl = n => (Number(n) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const round2 = n => Math.round((Number(n) || 0) * 100) / 100;
+const onlyDigits = s => String(s || "").replace(/\D/g, "");
+const fmtDate = d => new Date(d).toLocaleDateString("pt-BR");
+const fmtDateTime = d => new Date(d).toLocaleString("pt-BR");
+const ls = {
+  get(k, f) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : f; } catch { return f; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2600); }
+function b64urlEncode(obj) {
+  const bytes = new TextEncoder().encode(JSON.stringify(obj));
+  let bin = ""; bytes.forEach(b => bin += String.fromCharCode(b));
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function b64urlDecode(str) {
+  const b64 = str.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((str.length + 3) % 4);
+  const bin = atob(b64); const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+function newId() {
+  const d = new Date(); const p = n => String(n).padStart(2, "0");
+  return `MB-${String(d.getFullYear()).slice(2)}${p(d.getMonth() + 1)}${p(d.getDate())}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+}
+function maskDoc(v) {
+  const d = onlyDigits(v).slice(0, 14);
+  if (d.length <= 11) return d.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+  return d.replace(/^(\d{2})(\d)/, "$1.$2").replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d)/, ".$1/$2").replace(/(\d{4})(\d)/, "$1-$2");
+}
+function maskPhone(v) {
+  const d = onlyDigits(v).slice(0, 11);
+  if (d.length <= 10) return d.replace(/^(\d{2})(\d)/, "($1) $2").replace(/(\d{4})(\d)/, "$1-$2");
+  return d.replace(/^(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d)/, "$1-$2");
+}
+function validCPF(c) {
+  c = onlyDigits(c); if (c.length !== 11 || /^(\d)\1+$/.test(c)) return false;
+  let s = 0; for (let i = 0; i < 9; i++) s += +c[i] * (10 - i); let r = (s * 10) % 11 % 10; if (r !== +c[9]) return false;
+  s = 0; for (let i = 0; i < 10; i++) s += +c[i] * (11 - i); r = (s * 10) % 11 % 10; return r === +c[10];
+}
+function validCNPJ(c) {
+  c = onlyDigits(c); if (c.length !== 14 || /^(\d)\1+$/.test(c)) return false;
+  const calc = n => { let s = 0, p = n - 7; for (let i = 0; i < n; i++) { s += +c[i] * p--; if (p < 2) p = 9; } const r = s % 11; return r < 2 ? 0 : 11 - r; };
+  return calc(12) === +c[12] && calc(13) === +c[13];
+}
+const validDoc = d => validCPF(d) || validCNPJ(d);
+const plain = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+/* ---------------- PIX (BR Code estático) ---------------- */
+function crc16(str) {
+  let crc = 0xFFFF;
+  for (let i = 0; i < str.length; i++) {
+    crc ^= str.charCodeAt(i) << 8;
+    for (let j = 0; j < 8; j++) crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) & 0xFFFF : (crc << 1) & 0xFFFF;
+  }
+  return crc.toString(16).toUpperCase().padStart(4, "0");
+}
+function pixPayload({ key, name, city, amount, txid }) {
+  const f = (id, v) => id + String(v.length).padStart(2, "0") + v;
+  const n = plain(name).toUpperCase().replace(/[^A-Z0-9 ]/g, "").slice(0, 25);
+  const c = plain(city).toUpperCase().replace(/[^A-Z0-9 ]/g, "").slice(0, 15);
+  const t = (plain(txid).replace(/[^A-Za-z0-9]/g, "").slice(0, 25)) || "***";
+  let p = f("00", "01") + f("26", f("00", "br.gov.bcb.pix") + f("01", key.trim())) + f("52", "0000") + f("53", "986");
+  if (amount > 0) p += f("54", round2(amount).toFixed(2));
+  p += f("58", "BR") + f("59", n) + f("60", c) + f("62", f("05", t)) + "6304";
+  return p + crc16(p);
+}
+
+/* ---------------- pagamento ---------------- */
+function payOptions(cfg) {
+  const t = Number(cfg.total) || 0, p = cfg.pag || {}, out = [];
+  if (p.vista) {
+    const v = round2(t * (1 - (Number(p.vistaDesc) || 0) / 100));
+    out.push({ id: "VISTA", titulo: "À vista no PIX", sub: p.vistaDesc > 0 ? `${p.vistaDesc}% de desconto · de ${brl(t)}` : "Pagamento integral na assinatura", total: v, agora: v, valorLabel: brl(v) });
+  }
+  if (p.entrada) {
+    const pct = Number(p.entradaPct) || 50, e = round2(t * pct / 100), s = round2(t - e);
+    out.push({ id: "ENTRADA", titulo: `Entrada de ${pct}% + saldo na entrega`, sub: `${brl(e)} agora no PIX · ${brl(s)} na publicação`, total: t, agora: e, saldo: s, pct, valorLabel: brl(e) });
+  }
+  if (p.parcelado) {
+    const n = Math.max(2, Number(p.parcelas) || 3), v = round2(t / n);
+    out.push({ id: "PARCELADO", titulo: `Parcelado em ${n}x no PIX`, sub: `1ª parcela agora · demais a cada 30 dias`, total: t, agora: v, parcelas: n, parcela: v, valorLabel: `${n}x ${brl(v)}` });
+  }
+  if (p.cartao) {
+    out.push({ id: "CARTAO", titulo: "Cartão de crédito", sub: p.cartaoObs || "Link de pagamento enviado pela Malta Business", total: t, agora: 0, valorLabel: brl(t) });
+  }
+  return out;
+}
+function payClauseText(cfg, opt) {
+  const t = brl(cfg.total);
+  if (!opt) return `O valor total dos serviços é de ${t}.`;
+  switch (opt.id) {
+    case "VISTA": return `O valor total dos serviços é de ${t}. O CONTRATANTE optou pelo pagamento à vista via PIX no valor de ${brl(opt.total)}${cfg.pag.vistaDesc > 0 ? ` (já aplicado desconto de ${cfg.pag.vistaDesc}%)` : ""}, a ser realizado no ato da assinatura deste contrato.`;
+    case "ENTRADA": return `O valor total dos serviços é de ${t}. O CONTRATANTE optou pelo pagamento de entrada de ${opt.pct}% (${brl(opt.agora)}) via PIX no ato da assinatura, e o saldo de ${brl(opt.saldo)} na entrega/publicação do projeto, antes da transferência definitiva de acessos.`;
+    case "PARCELADO": return `O valor total dos serviços é de ${t}. O CONTRATANTE optou pelo pagamento em ${opt.parcelas} parcelas de ${brl(opt.parcela)} via PIX, sendo a primeira no ato da assinatura e as demais a cada 30 (trinta) dias.`;
+    case "CARTAO": return `O valor total dos serviços é de ${t}. O CONTRATANTE optou pelo pagamento via cartão de crédito, por meio de link de pagamento enviado pela CONTRATADA. ${cfg.pag.cartaoObs ? cfg.pag.cartaoObs + "." : ""} O início dos trabalhos fica condicionado à aprovação da transação.`;
+  }
+}
+
+/* ---------------- texto do contrato ---------------- */
+function contractSections(cfg, cli, opt) {
+  const k = cfg.contratada;
+  const cliDoc = onlyDigits(cli.doc).length === 14 ? "CNPJ" : "CPF";
+  const cliName = cli.empresa ? `${cli.nome}, representando ${cli.empresa}` : cli.nome;
+  const hosp = cfg.hospedagem === "incluso"
+    ? `Os custos de domínio e hospedagem pelo período de 12 (doze) meses estão incluídos no valor deste contrato. Após esse período, a renovação será de responsabilidade do CONTRATANTE.`
+    : `Os custos de registro de domínio, hospedagem, plugins, temas, APIs e demais serviços de terceiros não estão incluídos no valor deste contrato e são de responsabilidade do CONTRATANTE, devendo os serviços ser contratados preferencialmente em seu nome.`;
+  const S = [
+    { t: "1. Identificação das partes", p: [
+      `CONTRATADA: ${k.nome}${k.marca ? ` (${k.marca})` : ""}, inscrita no CPF/CNPJ sob o nº ${k.doc}, com sede em ${k.cidade}/${k.uf}.`,
+      `CONTRATANTE: ${cliName || "____________________"}, inscrito(a) no ${cliDoc} sob o nº ${cli.doc || "____________"}, residente/sediado(a) em ${cli.endereco || "____________________"}, telefone ${cli.tel || "________"}, e-mail ${cli.email || "________"}.`
+    ]},
+    { t: "2. Objeto", p: [
+      `O presente contrato tem por objeto a prestação de serviços de desenvolvimento web, na modalidade ${cfg.servico}${cfg.projeto ? `, referente ao projeto "${cfg.projeto}"` : ""}, compreendendo exclusivamente os seguintes entregáveis:`,
+      ...cfg.itens.map((it, i) => `${String.fromCharCode(97 + i)}) ${it};`),
+      ...(cfg.obs ? [`Observações do escopo: ${cfg.obs}`] : []),
+      `Qualquer funcionalidade, página ou serviço não descrito acima será considerado fora do escopo e poderá ser orçado separadamente, mediante aditivo ou nova proposta.`
+    ]},
+    { t: "3. Prazo e etapas", p: [
+      `O prazo estimado de entrega é de ${cfg.prazo} dias úteis, contados a partir da confirmação do pagamento inicial e do recebimento de todos os materiais necessários (textos, imagens, logotipo, acessos e informações).`,
+      `O projeto seguirá as etapas: (i) briefing e alinhamento; (ii) proposta de layout; (iii) desenvolvimento; (iv) revisões e homologação; (v) publicação.`,
+      `Atrasos no envio de materiais, aprovações ou respostas por parte do CONTRATANTE suspendem automaticamente a contagem do prazo, que será prorrogado pelo mesmo período.`
+    ]},
+    { t: "4. Obrigações do contratante", p: [
+      `Fornecer, em até 5 (cinco) dias úteis após a assinatura, todo o conteúdo e acessos necessários, garantindo que possui os direitos de uso sobre textos, imagens, marcas e demais materiais enviados, isentando a CONTRATADA de qualquer responsabilidade sobre eles.`,
+      `Analisar e aprovar cada etapa em até 5 (cinco) dias úteis. A ausência de manifestação nesse prazo será considerada aprovação tácita da etapa.`,
+      `Efetuar os pagamentos nas datas e condições acordadas.`
+    ]},
+    { t: "5. Obrigações da contratada", p: [
+      `Executar os serviços com qualidade técnica, dentro das boas práticas de desenvolvimento web, cumprindo o escopo e os prazos acordados.`,
+      `Manter o CONTRATANTE informado sobre o andamento do projeto e entregar o projeto publicado e funcional ao final.`
+    ]},
+    { t: "6. Revisões e alterações", p: [
+      `Estão incluídas ${cfg.revisoes} (${["zero","uma","duas","três","quatro","cinco"][cfg.revisoes] || cfg.revisoes}) rodada(s) de ajustes após a apresentação do layout/projeto, desde que dentro do escopo contratado.`,
+      `Alterações estruturais após a aprovação de uma etapa, ou rodadas adicionais de ajustes, poderão ser cobradas à parte, mediante orçamento prévio.`
+    ]},
+    { t: "7. Valor e forma de pagamento", p: [
+      payClauseText(cfg, opt),
+      `Em caso de atraso no pagamento, incidirá multa de 2% (dois por cento) sobre o valor devido, acrescida de juros de 1% (um por cento) ao mês, podendo a CONTRATADA suspender a execução dos serviços e a publicação do projeto até a regularização.`,
+      ...(Number(cfg.manutencao) > 0 ? [`Após a publicação, o CONTRATANTE poderá aderir ao plano de manutenção mensal no valor de ${brl(cfg.manutencao)}/mês, contemplando atualizações, backups, monitoramento e pequenos ajustes, mediante solicitação.`] : [])
+    ]},
+    { t: "8. Hospedagem, domínio e serviços de terceiros", p: [
+      hosp,
+      `A CONTRATADA não se responsabiliza por instabilidades, indisponibilidades, alterações de preço ou políticas de fornecedores terceiros (hospedagens, plataformas, gateways de pagamento, APIs e similares).`
+    ]},
+    { t: "9. Propriedade intelectual", p: [
+      `Após a quitação integral do valor contratado, os direitos patrimoniais sobre o layout e o conteúdo final desenvolvido especificamente para o CONTRATANTE serão transferidos a ele. Até a quitação, todo o material permanece de propriedade da CONTRATADA.`,
+      `Bibliotecas, frameworks, componentes de código aberto, ferramentas e códigos-base reutilizáveis da CONTRATADA permanecem sob suas respectivas licenças, sendo concedida ao CONTRATANTE licença de uso por prazo indeterminado no projeto entregue.`,
+      `A CONTRATADA poderá divulgar o projeto em seu portfólio e redes sociais, salvo solicitação expressa e por escrito do CONTRATANTE em contrário.`
+    ]},
+    { t: "10. Garantia e suporte", p: [
+      `A CONTRATADA oferece garantia de ${cfg.garantia} dias após a publicação para correção de falhas (bugs) decorrentes do desenvolvimento, sem custo adicional.`,
+      `A garantia não cobre alterações de conteúdo, novas funcionalidades, falhas causadas por terceiros, por alterações feitas pelo CONTRATANTE ou por atualizações de plataformas externas.`
+    ]},
+    { t: "11. Confidencialidade e LGPD", p: [
+      `As partes comprometem-se a manter sigilo sobre informações confidenciais a que tiverem acesso em razão deste contrato. Os dados pessoais coletados serão tratados conforme a Lei nº 13.709/2018 (LGPD), exclusivamente para a execução deste contrato e cumprimento de obrigações legais.`
+    ]},
+    { t: "12. Rescisão", p: [
+      `O contrato poderá ser rescindido por qualquer das partes mediante comunicação por escrito. Em caso de desistência do CONTRATANTE após o início dos trabalhos, o valor de entrada não será restituído, sendo devidos ainda os valores proporcionais às etapas já executadas.`,
+      `Em caso de descumprimento contratual por qualquer das partes, a parte prejudicada poderá rescindir o contrato imediatamente, sem prejuízo das perdas e danos cabíveis.`
+    ]},
+    { t: "13. Disposições gerais e foro", p: [
+      `As partes reconhecem a validade da assinatura eletrônica deste instrumento, nos termos da MP nº 2.200-2/2001 e da Lei nº 14.063/2020, tendo como evidências os dados de identificação, data, hora e assinatura registrados.`,
+      `Fica eleito o foro da comarca de ${k.cidade}/${k.uf} para dirimir quaisquer dúvidas oriundas deste contrato, com renúncia a qualquer outro, por mais privilegiado que seja.`
+    ]}
+  ];
+  return S;
+}
+function cleanText(s) { return String(s).replace(/\s{2,}/g, " "); }
+
+/* ---------------- PDF ---------------- */
+function pdfSafe(s) { return cleanText(String(s)).replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/[—–]/g, "-").replace(/•/g, "-").replace(/·/g, "-"); }
+function buildPDF(cfg, st, opt) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const W = 210, M = 18, CW = W - M * 2; let y = 0;
+  const header = () => {
+    doc.setFillColor(10, 10, 10); doc.rect(0, 0, W, 26, "F");
+    doc.setTextColor(243, 242, 239);
+    if (LOGO) { try { doc.addImage(LOGO, "PNG", M, 5.5, 25.2, 11, undefined, "FAST"); } catch {} }
+    else { doc.setFont("helvetica", "bold"); doc.setFontSize(16); doc.text("Malta", M, 14); }
+    doc.setFont("courier", "normal"); doc.setFontSize(6.5); doc.setTextColor(141, 141, 138);
+    doc.text("CONTRATO DIGITAL - DESENVOLVIMENTO WEB", M, 21.5);
+    doc.setFontSize(7.5); doc.setTextColor(243, 242, 239);
+    doc.text(`CONTRATO ${cfg.id}`, W - M, 12, { align: "right" });
+    doc.setTextColor(141, 141, 138); doc.text(fmtDate(st.assinadoEm || Date.now()), W - M, 17.5, { align: "right" });
+    y = 38;
+  };
+  const body = () => { doc.setFont("helvetica", "normal"); doc.setFontSize(10); doc.setTextColor(25, 25, 25); };
+  const ensure = h => { if (y + h > 280) { doc.addPage(); header(); body(); } };
+  header();
+  doc.setTextColor(20, 20, 20); doc.setFont("helvetica", "bold"); doc.setFontSize(13);
+  doc.text(pdfSafe("CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE DESENVOLVIMENTO WEB"), W / 2, y, { align: "center" }); y += 10;
+  for (const s of contractSections(cfg, st.cli, opt)) {
+    ensure(14);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(9.5); doc.setTextColor(90, 90, 88);
+    doc.text(pdfSafe(s.t.toUpperCase()), M, y); y += 6;
+    body();
+    for (const p of s.p) {
+      const lines = doc.splitTextToSize(pdfSafe(p), CW);
+      for (const ln of lines) { ensure(5.2); doc.text(ln, M, y); y += 5.2; }
+      y += 1.6;
+    }
+    y += 3;
+  }
+  // assinaturas
+  ensure(80);
+  y += 4;
+  doc.setDrawColor(200); doc.line(M, y, W - M, y); y += 8;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(9.5); doc.setTextColor(90, 90, 88);
+  doc.text(pdfSafe("REGISTRO DE ASSINATURA ELETRÔNICA"), M, y); y += 7;
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.setTextColor(40, 40, 40);
+  const reg = [
+    `Contratante: ${st.cli.nome}${st.cli.empresa ? " - " + st.cli.empresa : ""}`,
+    `Documento: ${st.cli.doc}   |   E-mail: ${st.cli.email}   |   Telefone: ${st.cli.tel}`,
+    `Data/hora da assinatura: ${fmtDateTime(st.assinadoEm)}`,
+    `Forma de pagamento escolhida: ${opt ? opt.titulo + " (" + opt.valorLabel + ")" : "-"}`,
+    `Identificador do contrato: ${cfg.id}`,
+    `Dispositivo: ${navigator.userAgent.slice(0, 110)}`
+  ];
+  reg.forEach(r => { doc.splitTextToSize(pdfSafe(r), CW).forEach(l => { doc.text(l, M, y); y += 4.8; }); });
+  y += 6;
+  if (st.assinatura) {
+    try { const ip = doc.getImageProperties(st.assinatura), w = Math.min(70, 28 * ip.width / ip.height); doc.addImage(st.assinatura, "PNG", M, y, w, w * ip.height / ip.width, undefined, "FAST"); } catch {}
+  }
+  y += 30;
+  doc.setDrawColor(120); doc.line(M, y, M + 75, y); doc.line(W - M - 75, y, W - M, y); y += 5;
+  doc.setFontSize(8.5); doc.setTextColor(60, 60, 60);
+  doc.text(pdfSafe(st.cli.nome.toUpperCase()), M, y); doc.text(pdfSafe(cfg.contratada.nome), W - M - 75, y);
+  y += 4; doc.setTextColor(130, 130, 130);
+  doc.text("CONTRATANTE", M, y); doc.text("CONTRATADA", W - M - 75, y);
+  const pages = doc.getNumberOfPages();
+  for (let i = 1; i <= pages; i++) { doc.setPage(i); doc.setFontSize(7.5); doc.setTextColor(150); doc.text(`${cfg.id} - pagina ${i}/${pages}`, W / 2, 291, { align: "center" }); }
+  return doc;
+}
+
+/* ============================================================
+   CLIENTE
+   ============================================================ */
+let CFG = null, ST = null;
+let LOGO = null; // logo em dataURL para o PDF
+fetch("assets/logo-malta.png").then(r => r.blob()).then(b => { const fr = new FileReader(); fr.onload = () => LOGO = fr.result; fr.readAsDataURL(b); }).catch(() => {});
+const waLink = (num, text) => { const d = onlyDigits(num); return d ? `https://wa.me/${d.length <= 11 ? "55" + d : d}${text ? "?text=" + encodeURIComponent(text) : ""}` : ""; };
+const merge = (base, extra) => { const o = { ...base }; for (const k in extra) if (extra[k] !== "" && extra[k] != null) o[k] = extra[k]; return o; };
+function brandHTML(sub, whats, msg) {
+  const wa = waLink(whats || DEFAULT_CONTRATADA.whats, msg || "Olá Malta, tenho uma dúvida sobre o contrato.");
+  return `<div class="top"><img src="assets/logo-malta.png" alt="Malta">${wa ? `<a class="wa" href="${wa}" target="_blank" rel="noopener">WhatsApp</a>` : ""}</div>
+  <div class="bar-meta"><span class="eyebrow">${sub}</span><span class="eyebrow r">Belo Horizonte · BR</span></div>`;
+}
+const headHTML = (eyebrow, light, bold, p) => `<div class="head"><span class="eyebrow">${eyebrow}</span><h2><span class="l">${light}</span><span class="b">${bold}</span></h2>${p ? `<p>${p}</p>` : ""}</div>`;
+function footHTML() {
+  const k = CFG.contratada, wa = waLink(k.whats, `Olá Malta, estou preenchendo o contrato ${CFG.id} e tenho uma dúvida.`);
+  return `<div class="foot"><a href="${wa}" target="_blank" rel="noopener">Dúvidas? ${esc(k.whats)} ↗</a><a href="https://maltabusiness.vercel.app" target="_blank" rel="noopener">maltabusiness ↗</a></div>`;
+}
+const save = () => ls.set("mbweb:" + CFG.id, ST);
+
+function stepper(step) {
+  const names = ["Dados", "Contrato", "Assinatura", "Final"];
+  return `<div class="stepper"><div class="bar"><i style="width:${(step / 4) * 100}%"></i></div><div class="dots">${names.map((n, i) => `<div class="dot ${i + 1 < step ? "done" : i + 1 === step ? "on" : ""}"><b>0${i + 1}</b><span>${n}</span></div>`).join("")}</div></div>`;
+}
+
+function renderClient() {
+  const app = $("#app"); const s = ST.step;
+  let html = `<div class="wrap fade">${brandHTML("Contrato digital · Desenvolvimento web", CFG.contratada.whats, `Olá Malta, estou preenchendo o contrato ${CFG.id} e tenho uma dúvida.`)}${stepper(s)}`;
+  if (s === 1) html += stepDados();
+  if (s === 2) html += stepContrato();
+  if (s === 3) html += stepAssinatura();
+  if (s === 4) html += stepFinal();
+  html += footHTML() + `</div>`;
+  app.innerHTML = html;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  if (s === 1) bindDados();
+  if (s === 2) bindContrato();
+  if (s === 3) bindAssinatura();
+  if (s === 4) bindFinal();
+}
+
+function stepDados() {
+  const c = ST.cli;
+  return `
+  ${headHTML("Passo 01 — Dados do contratante", "Vamos começar", "pelos seus dados.", "Preencha as informações que vão constar no contrato. Leva menos de 2 minutos.")}
+  <div class="card feat">
+    <div class="sec"><h3>Sua proposta · ${esc(CFG.servico)}</h3></div>
+    <div class="big">${brl(CFG.total)}</div>
+    <div class="note mt12">${CFG.projeto ? `<b style="color:var(--white);font-weight:600">${esc(CFG.projeto)}</b> · ` : ""}Prazo estimado de ${CFG.prazo} dias úteis</div>
+  </div>
+  <div class="card">
+    <div class="sec"><h3>Identidade e endereço</h3></div>
+    <div class="grid">
+      <label class="f"><span>Nome completo</span><input class="in" id="nome" placeholder="Nome do responsável" value="${esc(c.nome)}" autocomplete="name"></label>
+      <div class="grid g2">
+        <label class="f"><span>CPF ou CNPJ</span><input class="in" id="doc" placeholder="000.000.000-00" value="${esc(c.doc)}" inputmode="numeric"></label>
+        <label class="f"><span>Empresa (opcional)</span><input class="in" id="empresa" placeholder="Razão social / marca" value="${esc(c.empresa)}"></label>
+      </div>
+      <label class="f"><span>Endereço completo</span><input class="in" id="endereco" placeholder="Rua, número, bairro, cidade/UF" value="${esc(c.endereco)}" autocomplete="street-address"></label>
+    </div>
+    <div class="divider"></div>
+    <div class="sec"><h3>Contato direto</h3></div>
+    <div class="grid g2">
+      <label class="f"><span>Telefone / WhatsApp</span><input class="in" id="tel" placeholder="(00) 00000-0000" value="${esc(c.tel)}" inputmode="tel" autocomplete="tel"></label>
+      <label class="f"><span>E-mail</span><input class="in" id="email" placeholder="exemplo@email.com" value="${esc(c.email)}" inputmode="email" autocomplete="email"></label>
+    </div>
+    <div class="divider"></div>
+    <div class="sec"><h3>Sobre o projeto</h3></div>
+    <div class="grid">
+      <label class="f"><span>Domínio atual ou desejado (opcional)</span><input class="in" id="dominio" placeholder="www.suamarca.com.br" value="${esc(c.dominio)}"></label>
+    </div>
+    <button class="btn primary mt20" id="next1">Avançar para o contrato</button>
+  </div>`;
+}
+function bindDados() {
+  $("#doc").addEventListener("input", e => e.target.value = maskDoc(e.target.value));
+  $("#tel").addEventListener("input", e => e.target.value = maskPhone(e.target.value));
+  $("#next1").onclick = () => {
+    const v = id => $("#" + id).value.trim();
+    const cli = { nome: v("nome"), doc: v("doc"), empresa: v("empresa"), endereco: v("endereco"), tel: v("tel"), email: v("email"), dominio: v("dominio") };
+    const bad = [];
+    if (cli.nome.split(/\s+/).length < 2) bad.push("nome");
+    if (!validDoc(cli.doc)) bad.push("doc");
+    if (cli.endereco.length < 8) bad.push("endereco");
+    if (onlyDigits(cli.tel).length < 10) bad.push("tel");
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cli.email)) bad.push("email");
+    document.querySelectorAll(".in").forEach(el => el.classList.remove("bad"));
+    bad.forEach(id => $("#" + id).classList.add("bad"));
+    if (bad.length) { toast(bad.includes("doc") ? "Confira o CPF/CNPJ informado." : "Preencha os campos destacados."); return; }
+    ST.cli = cli; ST.step = 2; save(); renderClient();
+  };
+}
+
+function stepContrato() {
+  const secs = contractSections(CFG, ST.cli, null);
+  return `
+  ${headHTML("Passo 02 — Leitura e aceite", "Confira o escopo", "e o contrato.")}
+  <div class="card">
+    <div class="sec"><h3>O que está incluso</h3></div>
+    <ul class="scope">${CFG.itens.map(i => `<li>${esc(i)}</li>`).join("")}</ul>
+    ${CFG.obs ? `<p class="note mt12">${esc(CFG.obs)}</p>` : ""}
+    <div class="divider"></div>
+    <div class="kv"><span>Serviço</span><b>${esc(CFG.servico)}</b></div>
+    <div class="kv"><span>Prazo estimado</span><b>${CFG.prazo} dias úteis</b></div>
+    <div class="kv"><span>Rodadas de ajustes</span><b>${CFG.revisoes}</b></div>
+    <div class="kv"><span>Garantia pós-entrega</span><b>${CFG.garantia} dias</b></div>
+    <div class="kv"><span>Valor do investimento</span><b>${brl(CFG.total)}</b></div>
+  </div>
+  <div class="card">
+    <div class="sec"><h3>Termos do contrato</h3></div>
+    <div class="contract" id="ctext">${secs.map(s => `<h4>${esc(s.t)}</h4>${s.p.map(p => `<p>${esc(cleanText(p))}</p>`).join("")}`).join("")}</div>
+    <div class="divider"></div>
+    <label class="check"><input type="checkbox" id="agree" ${ST.aceite ? "checked" : ""}><span>Li e concordo com todos os termos deste contrato de prestação de serviços de desenvolvimento web.</span></label>
+    <div class="row"><button class="btn ghost" id="back2">Voltar</button><button class="btn primary" id="next2" ${ST.aceite ? "" : "disabled"}>Assinar</button></div>
+  </div>`;
+}
+function bindContrato() {
+  $("#agree").onchange = e => { ST.aceite = e.target.checked; $("#next2").disabled = !ST.aceite; save(); };
+  $("#back2").onclick = () => { ST.step = 1; save(); renderClient(); };
+  $("#next2").onclick = () => { ST.step = 3; save(); renderClient(); };
+}
+
+function stepAssinatura() {
+  const opts = payOptions(CFG);
+  if (!ST.pagamento && opts.length) ST.pagamento = opts[0].id;
+  return `
+  ${headHTML("Passo 03 — Pagamento e assinatura", "Último passo:", "escolha e assine.")}
+  <div class="card">
+    <div class="sec"><h3>Bloco A — Forma de pagamento</h3></div>
+    <div class="opts">${opts.map(o => `
+      <label class="opt ${ST.pagamento === o.id ? "sel" : ""}" data-id="${o.id}"><input type="radio" name="pg" value="${o.id}" ${ST.pagamento === o.id ? "checked" : ""}><span class="r"></span><span class="t"><b>${esc(o.titulo)}</b><small>${esc(o.sub)}</small></span><span class="v">${esc(o.valorLabel)}</span></label>`).join("")}
+    </div>
+  </div>
+  <div class="card">
+    <div class="sec"><h3>Bloco B — Assinatura digital</h3></div>
+    <p class="note" style="margin-bottom:12px">Assine com o dedo ou mouse no campo abaixo.</p>
+    <div class="sig"><canvas id="pad"></canvas><div class="ln"></div><div class="ph" id="ph">Assine aqui</div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
+      <span class="note">${esc(ST.cli.nome)}</span><button class="mini" id="clear">Limpar</button>
+    </div>
+    <div class="row"><button class="btn ghost" id="back3">Voltar</button><button class="btn primary" id="next3">Finalizar contrato</button></div>
+  </div>`;
+}
+function bindAssinatura() {
+  document.querySelectorAll(".opt").forEach(el => el.onclick = () => {
+    ST.pagamento = el.dataset.id; save();
+    document.querySelectorAll(".opt").forEach(o => o.classList.toggle("sel", o === el));
+  });
+  const cv = $("#pad"), ctx = cv.getContext("2d");
+  let drawing = false, dirty = false, last = null;
+  const fit = () => {
+    const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    cv.width = r.width * dpr; cv.height = r.height * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineWidth = 2.2; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#0a0a0a";
+  };
+  fit();
+  const pos = e => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  cv.addEventListener("pointerdown", e => { drawing = true; last = pos(e); cv.setPointerCapture(e.pointerId); $("#ph").style.display = "none"; });
+  cv.addEventListener("pointermove", e => {
+    if (!drawing) return; const p = pos(e);
+    ctx.beginPath(); ctx.moveTo(last.x, last.y);
+    const mx = (last.x + p.x) / 2, my = (last.y + p.y) / 2; ctx.quadraticCurveTo(last.x, last.y, mx, my); ctx.lineTo(p.x, p.y); ctx.stroke();
+    last = p; dirty = true;
+  });
+  ["pointerup", "pointercancel", "pointerleave"].forEach(ev => cv.addEventListener(ev, () => drawing = false));
+  $("#clear").onclick = () => { ctx.clearRect(0, 0, cv.width, cv.height); dirty = false; $("#ph").style.display = ""; };
+  $("#back3").onclick = () => { ST.step = 2; save(); renderClient(); };
+  $("#next3").onclick = () => {
+    if (!ST.pagamento) return toast("Escolha a forma de pagamento.");
+    if (!dirty) return toast("Faça sua assinatura no campo indicado.");
+    const off = document.createElement("canvas");
+    off.width = 600; off.height = Math.round(600 * cv.height / cv.width);
+    off.getContext("2d").drawImage(cv, 0, 0, off.width, off.height);
+    ST.assinatura = off.toDataURL("image/png");
+    ST.assinadoEm = new Date().toISOString();
+    ST.step = 4; save(); renderClient();
+  };
+}
+
+function currentOpt() { return payOptions(CFG).find(o => o.id === ST.pagamento); }
+function stepFinal() {
+  const o = currentOpt();
+  const pixBlock = o && o.agora > 0 && CFG.contratada.pix ? `
+    <div class="pix mt16">
+      <div style="font-weight:800;font-size:17px;letter-spacing:-.01em">Pague ${o.id === "VISTA" ? "o valor total" : o.id === "PARCELADO" ? "a 1ª parcela" : "a entrada"} de ${brl(o.agora)}</div>
+      <div id="qr"></div>
+      <div style="font-size:12px;color:#5a5a58">Escaneie o QR Code no app do seu banco ou use o PIX copia e cola:</div>
+      <div class="copy"><input id="pixcode" readonly><button id="copypix">Copiar</button></div>
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8d8d8a;margin-top:12px">Favorecido: ${esc(CFG.contratada.nome)}</div>
+    </div>` : o && o.id === "CARTAO" ? `<p class="note mt16 center">A Malta Business vai te enviar o link de pagamento no cartão pelo WhatsApp.</p>` : "";
+  return `
+  ${headHTML("Passo 04 — Pagamento e envio", "Tudo certo.", "Contrato assinado.", "Agora é só pagar e enviar o contrato pra Malta pra darmos início ao seu projeto.")}
+  <div class="card">
+    <div class="sec"><h3>Resumo</h3></div>
+    <div class="kv"><span>Contrato</span><b>${esc(CFG.id)}</b></div>
+    <div class="kv"><span>Contratante</span><b>${esc(ST.cli.nome)}</b></div>
+    <div class="kv"><span>Serviço</span><b>${esc(CFG.servico)}${CFG.projeto ? " · " + esc(CFG.projeto) : ""}</b></div>
+    <div class="kv"><span>Pagamento</span><b>${o ? esc(o.titulo) : "-"}</b></div>
+    <div class="kv"><span>Assinado em</span><b>${fmtDateTime(ST.assinadoEm)}</b></div>
+    ${pixBlock}
+  </div>
+  <div class="card">
+    <div class="sec"><h3>Finalize o envio</h3></div>
+    <p class="note" style="margin-bottom:14px">Envie o contrato assinado${o && o.agora > 0 ? " e o comprovante do PIX" : ""} para a Malta Business para darmos início ao seu projeto.</p>
+    <div class="grid">
+      <button class="btn primary" id="send">Enviar contrato para a Malta</button>
+      <button class="btn ghost" id="pdf">Baixar contrato em PDF</button>
+    </div>
+    <button class="mini mt16" id="restart" style="display:block;margin-left:auto;margin-right:auto">Corrigir dados e assinar de novo</button>
+  </div>`;
+}
+function waText() {
+  const o = currentOpt(), c = ST.cli;
+  return [
+    `*Contrato assinado · ${CFG.id}*`,
+    ``,
+    `*Serviço:* ${CFG.servico}${CFG.projeto ? " · " + CFG.projeto : ""}`,
+    `*Valor:* ${brl(CFG.total)}`,
+    `*Pagamento:* ${o ? o.titulo + " (" + o.valorLabel + ")" : "-"}`,
+    ``,
+    `*Nome:* ${c.nome}`,
+    c.empresa ? `*Empresa:* ${c.empresa}` : null,
+    `*CPF/CNPJ:* ${c.doc}`,
+    `*Endereço:* ${c.endereco}`,
+    `*Telefone:* ${c.tel}`,
+    `*E-mail:* ${c.email}`,
+    c.dominio ? `*Domínio:* ${c.dominio}` : null,
+    `*Assinado em:* ${fmtDateTime(ST.assinadoEm)}`,
+    ``,
+    `Segue o PDF do contrato assinado${o && o.agora > 0 ? " e o comprovante do PIX" : ""}.`
+  ].filter(l => l !== null).join("\n");
+}
+function bindFinal() {
+  const o = currentOpt();
+  if ($("#qr")) {
+    const code = pixPayload({ key: CFG.contratada.pix, name: CFG.contratada.nome, city: CFG.contratada.cidade, amount: o.agora, txid: CFG.id });
+    $("#pixcode").value = code;
+    new QRCode($("#qr"), { text: code, width: 190, height: 190, colorDark: "#0a0a0a", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.M });
+    $("#copypix").onclick = async () => { try { await navigator.clipboard.writeText(code); } catch { $("#pixcode").select(); document.execCommand("copy"); } toast("PIX copia e cola copiado!"); };
+  }
+  const fileName = () => `Contrato-${CFG.id}-${plain(ST.cli.nome).split(" ")[0]}.pdf`;
+  $("#pdf").onclick = () => { buildPDF(CFG, ST, o).save(fileName()); };
+  $("#send").onclick = async () => {
+    const doc = buildPDF(CFG, ST, o);
+    const file = new File([doc.output("blob")], fileName(), { type: "application/pdf" });
+    const text = waText();
+    // celular: compartilha o PDF direto (WhatsApp, e-mail...)
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: `Contrato ${CFG.id}`, text }); return; } catch (e) { if (e.name === "AbortError") return; }
+    }
+    // desktop: baixa o PDF e abre o WhatsApp com o resumo
+    doc.save(fileName());
+    const num = onlyDigits(CFG.contratada.whats);
+    if (num) window.open(`https://wa.me/${num.length <= 11 ? "55" + num : num}?text=${encodeURIComponent(text)}`, "_blank");
+    else if (CFG.contratada.email) location.href = `mailto:${CFG.contratada.email}?subject=${encodeURIComponent("Contrato assinado " + CFG.id)}&body=${encodeURIComponent(text.replace(/\*/g, ""))}`;
+    toast("PDF baixado. Anexe-o na conversa com a Malta.");
+  };
+  $("#restart").onclick = () => { if (confirm("Refazer o preenchimento? A assinatura atual será descartada.")) { ST = { step: 1, cli: ST.cli }; save(); renderClient(); } };
+}
+
+/* ============================================================
+   ADMIN
+   ============================================================ */
+let A = null;
+function adminDefaults() {
+  const saved = ls.get("mbweb:admin", null);
+  const base = {
+    preset: "lp", servico: PRESETS.lp.nome, projeto: "", itens: [...PRESETS.lp.itens], obs: "",
+    total: 1500, prazo: PRESETS.lp.prazo, revisoes: 2, garantia: 30, hospedagem: "cliente", manutencao: 0,
+    pag: { vista: true, vistaDesc: 5, entrada: true, entradaPct: 50, parcelado: false, parcelas: 3, cartao: false, cartaoObs: "Taxas de parcelamento por conta do contratante" },
+    contratada: { ...DEFAULT_CONTRATADA }
+  };
+  if (saved) { base.contratada = merge(base.contratada, saved.contratada || {}); base.pag = { ...base.pag, ...saved.pag }; }
+  return base;
+}
+function renderAdmin() {
+  if (!A) A = adminDefaults();
+  const hist = ls.get("mbweb:hist", []);
+  const k = A.contratada;
+  $("#app").innerHTML = `
+  <div class="wrap wide fade">
+    ${brandHTML("Gerador de contratos · Admin")}
+    ${headHTML("Nova proposta", "Monte o contrato,", "envie o link.", "Escolha o projeto, ajuste o escopo e o valor. O cliente só preenche os dados, assina e paga.")}
+
+    <div class="card">
+      <div class="sec"><h3>1. Tipo de projeto</h3></div>
+      <div class="presets">${Object.entries(PRESETS).map(([id, p]) => `<button class="preset ${A.preset === id ? "sel" : ""}" data-p="${id}"><b>${p.nome}</b><small>${p.desc}</small></button>`).join("")}</div>
+      <div class="grid g2 mt16">
+        <label class="f"><span>Nome do serviço (aparece no contrato)</span><input class="in" id="a-servico" value="${esc(A.servico)}"></label>
+        <label class="f"><span>Nome do projeto / cliente (opcional)</span><input class="in" id="a-projeto" placeholder="Ex.: LP Clínica Sorriso" value="${esc(A.projeto)}"></label>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sec"><h3>2. Escopo — o que está incluso</h3></div>
+      <div class="items" id="items">${A.itens.map((it, i) => `<div class="item"><input type="text" data-i="${i}" value="${esc(it)}"><button class="x" data-del="${i}" title="Remover">×</button></div>`).join("")}</div>
+      <div class="row" style="margin-top:10px"><input class="in" id="newitem" placeholder="Adicionar item ao escopo…"><button class="mini" id="additem" style="flex:0 0 auto;padding:0 16px">Adicionar</button></div>
+      <label class="f mt16"><span>Observações do escopo (opcional)</span><textarea class="in" id="a-obs" placeholder="Ex.: Copy fornecida pelo cliente. Integração com RD Station inclusa.">${esc(A.obs)}</textarea></label>
+    </div>
+
+    <div class="card">
+      <div class="sec"><h3>3. Valores e condições</h3></div>
+      <div class="grid g3">
+        <label class="f"><span>Valor total (R$)</span><input class="in" id="a-total" type="number" min="0" step="50" value="${A.total}"></label>
+        <label class="f"><span>Prazo (dias úteis)</span><input class="in" id="a-prazo" type="number" min="1" value="${A.prazo}"></label>
+        <label class="f"><span>Rodadas de ajustes</span><input class="in" id="a-rev" type="number" min="0" max="5" value="${A.revisoes}"></label>
+        <label class="f"><span>Garantia (dias)</span><input class="in" id="a-gar" type="number" min="0" value="${A.garantia}"></label>
+        <label class="f"><span>Domínio e hospedagem</span><select class="in" id="a-hosp"><option value="cliente" ${A.hospedagem === "cliente" ? "selected" : ""}>Por conta do cliente</option><option value="incluso" ${A.hospedagem === "incluso" ? "selected" : ""}>Inclusos (12 meses)</option></select></label>
+        <label class="f"><span>Manutenção mensal (R$, opcional)</span><input class="in" id="a-man" type="number" min="0" step="10" value="${A.manutencao || ""}" placeholder="0"></label>
+      </div>
+      <div class="divider"></div>
+      <div class="sec"><h3>Formas de pagamento oferecidas</h3></div>
+      <div class="payrow"><label class="toggle"><input type="checkbox" id="p-vista" ${A.pag.vista ? "checked" : ""}>À vista no PIX — desconto (%)</label><input class="in" id="p-vistaDesc" type="number" min="0" max="50" value="${A.pag.vistaDesc}"></div>
+      <div class="payrow"><label class="toggle"><input type="checkbox" id="p-entrada" ${A.pag.entrada ? "checked" : ""}>Entrada + saldo na entrega — entrada (%)</label><input class="in" id="p-entradaPct" type="number" min="10" max="90" value="${A.pag.entradaPct}"></div>
+      <div class="payrow"><label class="toggle"><input type="checkbox" id="p-parcelado" ${A.pag.parcelado ? "checked" : ""}>Parcelado no PIX — nº de parcelas</label><input class="in" id="p-parcelas" type="number" min="2" max="12" value="${A.pag.parcelas}"></div>
+      <div class="payrow"><label class="toggle"><input type="checkbox" id="p-cartao" ${A.pag.cartao ? "checked" : ""}>Cartão de crédito (link enviado por você)</label><span></span></div>
+      <div id="paypreview" class="note mt12"></div>
+    </div>
+
+    <div class="card">
+      <details ${k.whats ? "" : "open"}>
+        <summary><div class="sec" style="margin:0"><h3>4. Seus dados (contratada) ${k.whats ? '<span class="note" style="text-transform:none;letter-spacing:0;font-weight:400">— salvo, toque para editar</span>' : ""}</h3></div></summary>
+        <div class="grid g2 mt16">
+          <label class="f"><span>Nome / razão social</span><input class="in" id="k-nome" value="${esc(k.nome)}"></label>
+          <label class="f"><span>CPF / CNPJ</span><input class="in" id="k-doc" value="${esc(k.doc)}"></label>
+          <label class="f"><span>Cidade</span><input class="in" id="k-cidade" value="${esc(k.cidade)}"></label>
+          <label class="f"><span>UF</span><input class="in" id="k-uf" value="${esc(k.uf)}" maxlength="2"></label>
+          <label class="f"><span>Chave PIX</span><input class="in" id="k-pix" value="${esc(k.pix)}"></label>
+          <label class="f"><span>Seu WhatsApp (recebe os contratos)</span><input class="in" id="k-whats" value="${esc(k.whats)}" placeholder="(31) 90000-0000"></label>
+          <label class="f"><span>Seu e-mail (opcional)</span><input class="in" id="k-email" value="${esc(k.email)}"></label>
+        </div>
+      </details>
+    </div>
+
+    <button class="btn primary mt20" id="gen">Gerar link do contrato</button>
+    <div id="out"></div>
+
+    ${hist.length ? `<div class="card mt20"><div class="sec"><h3>Links gerados recentemente</h3></div><div class="hist">${hist.slice(0, 12).map(h => `<a href="${esc(h.url)}" target="_blank"><b>${esc(h.titulo)}</b><span>${esc(brl(h.total))} · ${fmtDate(h.data)}</span></a>`).join("")}</div></div>` : ""}
+  </div>`;
+  bindAdmin();
+}
+function readAdmin() {
+  const v = id => $("#" + id).value, n = id => Number($("#" + id).value) || 0, c = id => $("#" + id).checked;
+  A.servico = v("a-servico").trim(); A.projeto = v("a-projeto").trim(); A.obs = v("a-obs").trim();
+  A.itens = [...document.querySelectorAll("#items input")].map(i => i.value.trim()).filter(Boolean);
+  A.total = n("a-total"); A.prazo = n("a-prazo"); A.revisoes = n("a-rev"); A.garantia = n("a-gar"); A.hospedagem = v("a-hosp"); A.manutencao = n("a-man");
+  A.pag = { vista: c("p-vista"), vistaDesc: n("p-vistaDesc"), entrada: c("p-entrada"), entradaPct: n("p-entradaPct"), parcelado: c("p-parcelado"), parcelas: n("p-parcelas"), cartao: c("p-cartao"), cartaoObs: A.pag.cartaoObs };
+  A.contratada = { ...A.contratada, nome: v("k-nome").trim(), doc: v("k-doc").trim(), cidade: v("k-cidade").trim(), uf: v("k-uf").trim().toUpperCase(), pix: v("k-pix").trim(), whats: v("k-whats").trim(), email: v("k-email").trim() };
+  ls.set("mbweb:admin", { contratada: A.contratada, pag: A.pag });
+}
+function updatePayPreview() {
+  readAdmin();
+  const ops = payOptions(A);
+  $("#paypreview").innerHTML = ops.length ? "O cliente verá: " + ops.map(o => `<b style="color:var(--text)">${esc(o.titulo)}</b> (${esc(o.valorLabel)})`).join(" · ") : `<span style="color:var(--err)">Ative pelo menos uma forma de pagamento.</span>`;
+}
+function bindAdmin() {
+  document.querySelectorAll(".preset").forEach(b => b.onclick = () => {
+    readAdmin(); const p = PRESETS[b.dataset.p];
+    A.preset = b.dataset.p; A.servico = p.nome === "Personalizado" ? "Desenvolvimento Web" : p.nome; A.itens = [...p.itens]; A.prazo = p.prazo;
+    renderAdmin();
+  });
+  $("#items").onclick = e => { const d = e.target.dataset.del; if (d !== undefined) { readAdmin(); A.itens.splice(+d, 1); renderAdmin(); } };
+  const add = () => { const v = $("#newitem").value.trim(); if (!v) return; readAdmin(); A.itens.push(v); renderAdmin(); $("#newitem").focus(); };
+  $("#additem").onclick = add;
+  $("#newitem").onkeydown = e => { if (e.key === "Enter") add(); };
+  document.querySelectorAll("#app input, #app select").forEach(el => el.addEventListener("change", updatePayPreview));
+  updatePayPreview();
+  $("#gen").onclick = () => {
+    readAdmin();
+    if (!A.servico || !A.itens.length || !(A.total > 0)) return toast("Preencha serviço, escopo e valor.");
+    if (!payOptions(A).length) return toast("Ative ao menos uma forma de pagamento.");
+    if (!A.contratada.pix) return toast("Informe sua chave PIX.");
+    const cfg = {
+      v: 1, id: newId(), servico: A.servico, projeto: A.projeto, itens: A.itens, obs: A.obs,
+      total: A.total, prazo: A.prazo, revisoes: A.revisoes, garantia: A.garantia, hospedagem: A.hospedagem, manutencao: A.manutencao,
+      pag: A.pag, contratada: A.contratada, criado: new Date().toISOString()
+    };
+    const url = `${location.origin}${location.pathname}#c=${b64urlEncode(cfg)}`;
+    const titulo = `${cfg.servico}${cfg.projeto ? " · " + cfg.projeto : ""}`;
+    const hist = ls.get("mbweb:hist", []); hist.unshift({ url, titulo, total: cfg.total, data: cfg.criado, id: cfg.id }); ls.set("mbweb:hist", hist.slice(0, 30));
+    const msg = `Olá! Segue o contrato digital do seu projeto (${titulo}) com a Malta Business. É só preencher seus dados, ler, assinar e realizar o pagamento por aqui:\n\n${url}`;
+    $("#out").innerHTML = `
+      <div class="card mt16 fade">
+        <div class="sec"><h3>Link pronto · ${esc(cfg.id)}</h3></div>
+        <div class="linkbox">${esc(url)}</div>
+        <div class="grid g3 mt12">
+          <button class="btn primary" id="cp">Copiar link</button>
+          <a class="btn ghost" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" style="text-decoration:none">Enviar no WhatsApp</a>
+          <a class="btn ghost" href="${esc(url)}" target="_blank" style="text-decoration:none">Ver como cliente</a>
+        </div>
+      </div>`;
+    $("#cp").onclick = async () => { try { await navigator.clipboard.writeText(url); toast("Link copiado!"); } catch { toast("Copie manualmente o link acima."); } };
+    $("#out").scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+}
+
+/* ============================================================
+   ROTEAMENTO
+   ============================================================ */
+function renderEmpty(msg) {
+  const [l, b] = msg;
+  $("#app").innerHTML = `<div class="wrap fade">${brandHTML("Contrato digital · Desenvolvimento web")}
+    ${headHTML("Contrato digital", l, b, "Solicite à Malta o link do seu contrato pelo WhatsApp.")}
+    <a class="btn primary" href="${waLink(DEFAULT_CONTRATADA.whats, "Olá Malta, preciso do link do meu contrato.")}" target="_blank" rel="noopener">Falar com a Malta</a>
+    <div class="foot"><a href="#admin">Admin</a><a href="https://maltabusiness.vercel.app" target="_blank" rel="noopener">maltabusiness ↗</a></div></div>`;
+}
+function route() {
+  const h = location.hash;
+  if (h.startsWith("#admin")) { A = null; return renderAdmin(); }
+  const m = h.match(/^#c=([A-Za-z0-9_-]+)/);
+  if (m) {
+    try { CFG = b64urlDecode(m[1]); } catch { return renderEmpty(["Este link", "não é válido."]); }
+    CFG.contratada = merge(DEFAULT_CONTRATADA, CFG.contratada || {});
+    ST = ls.get("mbweb:" + CFG.id, null) || { step: 1, cli: { nome: "", doc: "", empresa: "", endereco: "", tel: "", email: "", dominio: "" } };
+    return renderClient();
+  }
+  renderEmpty(["Nenhum contrato", "carregado."]);
+}
+window.addEventListener("hashchange", route);
+route();
+</script>
+</body>
+</html>
