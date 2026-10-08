@@ -76,6 +76,7 @@ label.f > span{display:block;font-family:var(--mono);font-size:10px;letter-spaci
 .in::placeholder{color:var(--grey-2)}
 .in:focus{border-color:var(--white)}
 .in.bad{border-color:var(--err)}
+.in[readonly]{color:var(--grey);cursor:default}
 textarea.in{resize:vertical;min-height:76px}
 select.in{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--grey) 50%),linear-gradient(135deg,var(--grey) 50%,transparent 50%);background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px;background-repeat:no-repeat}
 select.in option{background:#151515}
@@ -317,35 +318,14 @@ function b64urlDecode(str) {
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 
-/* ---------------- link curto ----------------
-   O link leva só o que difere do padrão: itens do preset viram índices,
-   dados da contratada só entram se mudarem. Depois o JSON é comprimido.
-   Atenção: links já enviados apontam para os textos dos PRESETS por índice —
-   para mudar um item, prefira adicionar um novo em vez de reescrever o antigo. */
+/* ---------------- links antigos (#c...) ----------------
+   Antes das propostas no banco, o contrato ia comprimido no próprio link.
+   Mantido só para abrir links já enviados. Os itens dos PRESETS são
+   referenciados por índice: para mudar um item, adicione um novo. */
 const CARTAO_OBS = "Taxas de parcelamento por conta do contratante";
 const bytesToB64url = bytes => { let bin = ""; bytes.forEach(b => bin += String.fromCharCode(b)); return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); };
 const b64urlToBytes = str => Uint8Array.from(atob(str.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((str.length + 3) % 4)), c => c.charCodeAt(0));
 async function pipeBytes(bytes, stream) { return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer()); }
-function packCfg(cfg, presetKey) {
-  const P = PRESETS[presetKey] || PRESETS.custom, p = cfg.pag;
-  const o = { i: cfg.id.replace(/^MB-/, "").replace("-", ""), k: presetKey, t: cfg.total };
-  if (cfg.servico !== P.nome) o.s = cfg.servico;
-  if (cfg.projeto) o.n = cfg.projeto;
-  const same = cfg.itens.length === P.itens.length && cfg.itens.every((x, i) => x === P.itens[i]);
-  if (!same) o.it = cfg.itens.map(x => { const j = P.itens.indexOf(x); return j >= 0 ? j : x; });
-  if (cfg.obs) o.o = cfg.obs;
-  if (cfg.prazo !== P.prazo) o.z = cfg.prazo;
-  if (cfg.revisoes !== 2) o.r = cfg.revisoes;
-  if (cfg.garantia !== 30) o.g = cfg.garantia;
-  if (cfg.hospedagem === "incluso") o.h = 1;
-  if (cfg.manutencao > 0) o.m = cfg.manutencao;
-  o.p = [p.vista ? (+p.vistaDesc || 0) : -1, p.entrada ? +p.entradaPct : -1, p.parcelado ? +p.parcelas : -1, p.cartao ? 1 : 0];
-  if (p.cartao && p.cartaoObs && p.cartaoObs !== CARTAO_OBS) o.co = p.cartaoObs;
-  if (p.cartao && +p.cartaoTaxa) o.ct = +p.cartaoTaxa;
-  const c = {}; for (const key in cfg.contratada) if (cfg.contratada[key] && cfg.contratada[key] !== DEFAULT_CONTRATADA[key]) c[key] = cfg.contratada[key];
-  if (Object.keys(c).length) o.c = c;
-  return o;
-}
 function unpackCfg(o) {
   const P = PRESETS[o.k] || PRESETS.custom, pg = o.p || [0, 50, -1, 0];
   return {
@@ -356,12 +336,6 @@ function unpackCfg(o) {
     pag: { vista: pg[0] >= 0, vistaDesc: Math.max(0, pg[0]), entrada: pg[1] >= 0, entradaPct: pg[1] >= 0 ? pg[1] : 50, parcelado: pg[2] >= 0, parcelas: pg[2] >= 0 ? pg[2] : 3, cartao: !!pg[3], cartaoObs: o.co || CARTAO_OBS, cartaoTaxa: o.ct || 0 },
     contratada: merge(DEFAULT_CONTRATADA, o.c || {})
   };
-}
-async function encodeCfg(cfg, presetKey) {
-  const raw = new TextEncoder().encode(JSON.stringify(packCfg(cfg, presetKey)));
-  let best = "0" + bytesToB64url(raw);
-  if (window.CompressionStream) { try { const z = "1" + bytesToB64url(await pipeBytes(raw, new CompressionStream("deflate-raw"))); if (z.length < best.length) best = z; } catch {} }
-  return best;
 }
 async function decodeCfg(str) {
   let bytes = b64urlToBytes(str.slice(1));
@@ -378,7 +352,9 @@ function maskDoc(v) {
   return d.replace(/^(\d{2})(\d)/, "$1.$2").replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d)/, ".$1/$2").replace(/(\d{4})(\d)/, "$1-$2");
 }
 function maskPhone(v) {
-  const d = onlyDigits(v).slice(0, 11);
+  let d = onlyDigits(v);
+  if (d.length > 11 && d.startsWith("55")) d = d.slice(2); // ignora +55
+  d = d.slice(0, 11);
   if (d.length <= 10) return d.replace(/^(\d{2})(\d)/, "($1) $2").replace(/(\d{4})(\d)/, "$1-$2");
   return d.replace(/^(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d)/, "$1-$2");
 }
@@ -650,8 +626,8 @@ function stepDados() {
     <div class="divider"></div>
     <div class="sec"><h3>Contato direto</h3></div>
     <div class="grid g2">
-      <label class="f"><span>Telefone / WhatsApp</span><input class="in" id="tel" placeholder="(00) 00000-0000" value="${esc(c.tel)}" inputmode="tel" autocomplete="tel"></label>
-      <label class="f"><span>E-mail</span><input class="in" id="email" placeholder="exemplo@email.com" value="${esc(c.email)}" inputmode="email" autocomplete="email"></label>
+      <label class="f"><span>Telefone / WhatsApp</span><input class="in" id="tel" placeholder="(00) 00000-0000" value="${esc(c.tel)}" inputmode="tel" autocomplete="tel" ${ST.gate ? "readonly" : ""}></label>
+      <label class="f"><span>E-mail</span><input class="in" id="email" placeholder="exemplo@email.com" value="${esc(c.email)}" inputmode="email" autocomplete="email" ${ST.gate ? "readonly" : ""}></label>
     </div>
     <div class="divider"></div>
     <div class="sec"><h3>Sobre o projeto</h3></div>
@@ -954,7 +930,7 @@ let A = null;
 function adminDefaults() {
   const saved = ls.get("mbweb:admin", null);
   const base = {
-    preset: "lp", servico: PRESETS.lp.nome, projeto: "", itens: [...PRESETS.lp.itens], obs: "",
+    preset: "lp", clienteEmail: "", clienteTel: "", servico: PRESETS.lp.nome, projeto: "", itens: [...PRESETS.lp.itens], obs: "",
     total: 1500, prazo: PRESETS.lp.prazo, revisoes: 2, garantia: 30, hospedagem: "cliente", manutencao: 0,
     pag: { vista: true, vistaDesc: 5, entrada: true, entradaPct: 50, parcelado: false, parcelas: 3, cartao: false, cartaoObs: CARTAO_OBS, cartaoTaxa: 0 },
     contratada: { ...DEFAULT_CONTRATADA }
@@ -964,13 +940,21 @@ function adminDefaults() {
 }
 function renderAdmin() {
   if (!A) A = adminDefaults();
-  const hist = ls.get("mbweb:hist", []);
   const k = A.contratada;
   $("#app").innerHTML = `
   <div class="wrap wide fade">
     ${brandHTML("Gerador de contratos · Admin")}
     ${adminTabs("nova")}
     ${headHTML("Nova proposta", "Monte o contrato,", "envie o link.", "Escolha o projeto, ajuste o escopo e o valor. O cliente só preenche os dados, assina e paga.")}
+
+    <div class="card">
+      <div class="sec"><h3>0. Cliente — acesso ao contrato</h3></div>
+      <div class="grid g2">
+        <label class="f"><span>E-mail do cliente</span><input class="in" id="a-cemail" type="email" placeholder="cliente@email.com" value="${esc(A.clienteEmail)}"></label>
+        <label class="f"><span>Telefone / WhatsApp do cliente</span><input class="in" id="a-ctel" inputmode="tel" placeholder="(00) 00000-0000" value="${esc(A.clienteTel)}"></label>
+      </div>
+      <p class="note mt12">O cliente vai precisar digitar exatamente esse e-mail e esse telefone para ver o contrato.</p>
+    </div>
 
     <div class="card">
       <div class="sec"><h3>1. Tipo de projeto</h3></div>
@@ -1022,15 +1006,16 @@ function renderAdmin() {
       </details>
     </div>
 
-    <button class="btn primary mt20" id="gen">Gerar link do contrato</button>
+    <button class="btn primary mt20" id="gen">Criar proposta para o cliente</button>
     <div id="out"></div>
 
-    ${hist.length ? `<div class="card mt20"><div class="sec"><h3>Links gerados recentemente</h3></div><div class="hist">${hist.slice(0, 12).map(h => `<a href="${esc(h.url)}" target="_blank"><b>${esc(h.titulo)}</b><span>${esc(brl(h.total))} · ${fmtDate(h.data)}</span></a>`).join("")}</div></div>` : ""}
+    <div id="plist"></div>
   </div>`;
   bindAdmin();
 }
 function readAdmin() {
   const v = id => $("#" + id).value, n = id => Number($("#" + id).value) || 0, c = id => $("#" + id).checked;
+  A.clienteEmail = v("a-cemail").trim().toLowerCase(); A.clienteTel = v("a-ctel").trim();
   A.servico = v("a-servico").trim(); A.projeto = v("a-projeto").trim(); A.obs = v("a-obs").trim();
   A.itens = [...document.querySelectorAll("#items input")].map(i => i.value.trim()).filter(Boolean);
   A.total = n("a-total"); A.prazo = n("a-prazo"); A.revisoes = n("a-rev"); A.garantia = n("a-gar"); A.hospedagem = v("a-hosp"); A.manutencao = n("a-man");
@@ -1049,6 +1034,8 @@ function bindAdmin() {
     A.preset = b.dataset.p; A.servico = p.nome === "Personalizado" ? "Desenvolvimento Web" : p.nome; A.itens = [...p.itens]; A.prazo = p.prazo;
     renderAdmin();
   });
+  $("#a-ctel").addEventListener("input", e => e.target.value = maskPhone(e.target.value));
+  loadPropostas();
   $("#items").onclick = e => { const d = e.target.dataset.del; if (d !== undefined) { readAdmin(); A.itens.splice(+d, 1); renderAdmin(); } };
   const add = () => { const v = $("#newitem").value.trim(); if (!v) return; readAdmin(); A.itens.push(v); renderAdmin(); $("#newitem").focus(); };
   $("#additem").onclick = add;
@@ -1060,33 +1047,69 @@ function bindAdmin() {
     if (!A.servico || !A.itens.length || !(A.total > 0)) return toast("Preencha serviço, escopo e valor.");
     if (!payOptions(A).length) return toast("Ative ao menos uma forma de pagamento.");
     if (!A.contratada.pix) return toast("Informe sua chave PIX.");
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(A.clienteEmail)) return toast("Informe o e-mail do cliente.");
+    if (onlyDigits(A.clienteTel).length < 10) return toast("Informe o telefone do cliente com DDD.");
     const cfg = {
       v: 1, id: newId(), servico: A.servico, projeto: A.projeto, itens: A.itens, obs: A.obs,
       total: A.total, prazo: A.prazo, revisoes: A.revisoes, garantia: A.garantia, hospedagem: A.hospedagem, manutencao: A.manutencao,
       pag: A.pag, contratada: A.contratada, criado: new Date().toISOString()
     };
-    const url = `${location.origin}${location.pathname}#c${await encodeCfg(cfg, A.preset)}`;
+    const site = `${location.origin}${location.pathname}`;
     const titulo = `${cfg.servico}${cfg.projeto ? " · " + cfg.projeto : ""}`;
-    const hist = ls.get("mbweb:hist", []); hist.unshift({ url, titulo, total: cfg.total, data: cfg.criado, id: cfg.id }); ls.set("mbweb:hist", hist.slice(0, 30));
-    const msg = `Olá! Segue o contrato digital do seu projeto (${titulo}) com a Malta Business. É só preencher seus dados, ler, assinar e realizar o pagamento por aqui:\n\n${url}`;
+    const btn = $("#gen"); btn.disabled = true;
+    const { error } = await sb.from("propostas").insert({ contrato_id: cfg.id, cliente_email: A.clienteEmail, cliente_tel: A.clienteTel, config: cfg });
+    btn.disabled = false;
+    if (error) return toast("Não foi possível salvar a proposta: " + error.message);
+    const msg = `Olá! Seu contrato com a Malta Business (${titulo}) está pronto.\n\nAcesse ${site} e entre com seu e-mail e seu telefone (os mesmos que você me passou) para ver o contrato, pagar e assinar.`;
+    const waCli = waLink(A.clienteTel, msg);
     $("#out").innerHTML = `
       <div class="card mt16 fade">
-        <div class="sec"><h3>Link pronto · ${esc(cfg.id)}</h3></div>
-        <div class="linkbox">${esc(url)}</div>
+        <div class="sec"><h3>Proposta criada · ${esc(cfg.id)}</h3></div>
+        <div class="kv"><span>Cliente acessa em</span><b>${esc(site)}</b></div>
+        <div class="kv"><span>E-mail</span><b>${esc(A.clienteEmail)}</b></div>
+        <div class="kv"><span>Telefone</span><b>${esc(A.clienteTel)}</b></div>
         <div class="grid g3 mt12">
-          <button class="btn primary" id="cp">Copiar link</button>
-          <a class="btn ghost" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" style="text-decoration:none">Enviar no WhatsApp</a>
-          <a class="btn ghost" href="${esc(url)}" target="_blank" style="text-decoration:none">Ver como cliente</a>
+          <a class="btn primary" href="${waCli}" target="_blank" rel="noopener">WhatsApp do cliente</a>
+          <button class="btn ghost" id="cp">Copiar mensagem</button>
+          <a class="btn ghost" href="${esc(site)}" target="_blank" rel="noopener">Ver como cliente</a>
         </div>
       </div>`;
-    $("#cp").onclick = async () => { try { await navigator.clipboard.writeText(url); toast("Link copiado!"); } catch { toast("Copie manualmente o link acima."); } };
+    $("#cp").onclick = async () => { try { await navigator.clipboard.writeText(msg); toast("Mensagem copiada!"); } catch { toast("Não foi possível copiar."); } };
+    loadPropostas();
     $("#out").scrollIntoView({ behavior: "smooth", block: "start" });
   };
+}
+
+async function openAdmin() {
+  const { data: { session } } = sb ? await sb.auth.getSession() : { data: {} };
+  if (session) { A = null; return renderAdmin(); }
+  $("#app").innerHTML = `<div class="wrap wide fade">${brandHTML("Gerador de contratos · Admin")}${adminTabs("nova")}
+    ${headHTML("Somente você", "Entre para", "criar propostas.", "As propostas ficam salvas no banco e o cliente acessa com e-mail e telefone.")}
+    <div id="cbox"></div></div>`;
+  if (!sb) return $("#cbox").innerHTML = `<p class="note">Não foi possível conectar ao banco.</p>`;
+  loginForm(openAdmin);
+}
+async function loadPropostas() {
+  const box = $("#plist"); if (!box) return;
+  const { data, error } = await sb.from("propostas").select("id,contrato_id,cliente_email,cliente_tel,config,status,created_at").order("created_at", { ascending: false }).limit(30);
+  if (error || !data.length) return box.innerHTML = "";
+  const lbl = { aberta: "Aguardando cliente", assinada: "Assinada", cancelada: "Cancelada" };
+  box.innerHTML = `<div class="card mt20"><div class="sec"><h3>Propostas enviadas</h3></div><div class="hist">${data.map(r => `
+    <div class="ct"><div class="ct-top"><div><b>${esc(r.config.servico)}${r.config.projeto ? " · " + esc(r.config.projeto) : ""}</b><small>${esc(r.cliente_email)} · ${esc(r.cliente_tel)}</small></div><div class="ct-val">${brl(r.config.total)}</div></div>
+      <div class="ct-meta"><span>${esc(r.contrato_id)}</span><span>${fmtDate(r.created_at)}</span><span style="color:${r.status === "assinada" ? "#7ed39a" : r.status === "cancelada" ? "var(--err)" : "var(--white)"}">${lbl[r.status]}</span>
+      ${r.status === "aberta" ? `<button class="mini" data-cancel="${r.id}" style="margin-left:auto">Cancelar</button>` : ""}</div></div>`).join("")}</div></div>`;
+  box.querySelectorAll("[data-cancel]").forEach(b => b.onclick = async () => {
+    if (!confirm("Cancelar esta proposta? O cliente não vai mais conseguir abrir nem assinar.")) return;
+    const { error } = await sb.from("propostas").update({ status: "cancelada" }).eq("id", b.dataset.cancel);
+    if (error) return toast("Não foi possível cancelar."); loadPropostas();
+  });
 }
 
 /* ---------------- contratos assinados (só o dono) ---------------- */
 const adminTabs = on => `<div class="tabs"><a href="#admin" class="${on === "nova" ? "on" : ""}">Nova proposta</a><a href="#admin/contratos" class="${on === "contratos" ? "on" : ""}">Contratos assinados</a></div>`;
 const AUTH_ERR = { "Invalid login credentials": "E-mail ou senha incorretos.", "Email not confirmed": "Confirme seu e-mail primeiro (veja sua caixa de entrada).", "User already registered": "Esse e-mail já tem acesso. Use Entrar." };
+// texto da forma de pagamento recalculado a partir do contrato salvo (não confia no texto enviado pelo navegador)
+function payLabel(r) { const o = r.config && payOptions(r.config).find(x => x.id === r.pagamento_id); return o ? `${o.titulo} (${o.valorLabel})` : (r.pagamento || ""); }
 async function renderContratos() {
   $("#app").innerHTML = `<div class="wrap wide fade">${brandHTML("Contratos assinados · Admin")}${adminTabs("contratos")}
     ${headHTML("Somente você", "Contratos", "assinados.", "Todo contrato assinado cai aqui automaticamente, com os dados do cliente e o PDF.")}
@@ -1095,7 +1118,7 @@ async function renderContratos() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return loginForm();
   const { data, error } = await sb.from("contratos_web")
-    .select("id,contrato_id,servico,projeto,total,pagamento,cliente_nome,cliente_doc,cliente_email,cliente_tel,assinado_em,status,ip,comprovante_path,comprovante_nome")
+    .select("id,contrato_id,servico,projeto,total,pagamento,pagamento_id,config,cliente_nome,cliente_doc,cliente_email,cliente_tel,assinado_em,status,ip,comprovante_path,comprovante_nome")
     .order("created_at", { ascending: false });
   const who = `<div class="ct-meta" style="justify-content:space-between;margin-bottom:16px"><span>Conectado como ${esc(session.user.email)}</span><button class="mini" id="logout">Sair</button></div>`;
   if (error) { $("#cbox").innerHTML = who + `<p class="note">Erro ao carregar: ${esc(error.message)}</p>`; return bindLogout(); }
@@ -1104,7 +1127,7 @@ async function renderContratos() {
   $("#cbox").innerHTML = who + `<div class="ct-meta" style="margin-bottom:12px"><span>${data.length} contrato(s)</span><span>${brl(total)} em contratos</span><span>${data.filter(r => r.status === "pago").length} marcado(s) como pago</span></div>` +
     data.map(r => `<div class="ct">
       <div class="ct-top"><div><b>${esc(r.cliente_nome)}</b><small>${esc(r.servico)}${r.projeto ? " · " + esc(r.projeto) : ""}</small></div><div class="ct-val">${brl(r.total)}</div></div>
-      <div class="ct-meta"><span>${esc(r.contrato_id)}</span><span>${fmtDateTime(r.assinado_em)}</span><span>${esc(r.pagamento || "")}</span></div>
+      <div class="ct-meta"><span>${esc(r.contrato_id)}</span><span>${fmtDateTime(r.assinado_em)}</span><span>${esc(payLabel(r))}</span></div>
       <div class="ct-meta"><span>${esc(r.cliente_doc)}</span><span>${esc(r.cliente_email)}</span><span>${esc(r.cliente_tel)}</span>${r.ip ? `<span>IP ${esc(r.ip)}</span>` : ""}</div>
       <div class="ct-act"><button class="pill ${r.status === "pago" ? "pago" : ""}" data-st="${r.id}" data-cur="${esc(r.status)}">${r.status === "pago" ? "Pago" : "Aguardando pagamento"}</button>
         <button class="mini" data-pdf="${r.id}">Baixar PDF</button>
@@ -1134,7 +1157,7 @@ async function renderContratos() {
   });
 }
 function bindLogout() { const b = $("#logout"); if (b) b.onclick = async () => { await sb.auth.signOut(); renderContratos(); }; }
-function loginForm() {
+function loginForm(after = renderContratos) {
   $("#cbox").innerHTML = `<div class="card" style="max-width:440px">
     <div class="sec"><h3>Entrar</h3></div>
     <div class="grid">
@@ -1149,14 +1172,14 @@ function loginForm() {
   $("#l-in").onclick = async () => {
     const { error } = await sb.auth.signInWithPassword(vals());
     if (error) return msg(AUTH_ERR[error.message] || error.message);
-    renderContratos();
+    after();
   };
   $("#l-pass").onkeydown = e => { if (e.key === "Enter") $("#l-in").click(); };
   $("#l-up").onclick = async () => {
     const v = vals(); if (v.password.length < 8) return msg("Use uma senha com pelo menos 8 caracteres.");
     const { data, error } = await sb.auth.signUp({ ...v, options: { emailRedirectTo: location.origin + location.pathname + "#admin/contratos" } });
     if (error) return msg(AUTH_ERR[error.message] || error.message);
-    if (data.session) return renderContratos();
+    if (data.session) return after();
     msg("Pronto! Enviamos um link de confirmação pro seu e-mail. Clique nele e depois volte aqui e toque em Entrar.");
   };
 }
@@ -1171,10 +1194,67 @@ function renderEmpty(msg) {
     <a class="btn primary" href="${waLink(DEFAULT_CONTRATADA.whats, "Olá Malta, preciso do link do meu contrato.")}" target="_blank" rel="noopener">Falar com a Malta</a>
     <div class="foot"><a href="#admin">Admin</a><a href="https://maltabusiness.vercel.app" target="_blank" rel="noopener">maltabusiness ↗</a></div></div>`;
 }
+function renderGate(prefill = {}) {
+  $("#app").innerHTML = `<div class="wrap fade">${brandHTML("Contrato digital · Desenvolvimento web")}
+    ${headHTML("Contrato digital", "Acesse seu", "contrato.", "Entre com o e-mail e o telefone que você passou para a Malta.")}
+    <div class="card">
+      <div class="grid">
+        <label class="f"><span>Seu e-mail</span><input class="in" id="g-email" type="email" inputmode="email" autocomplete="email" placeholder="exemplo@email.com" value="${esc(prefill.email || "")}"></label>
+        <label class="f"><span>Seu telefone / WhatsApp</span><input class="in" id="g-tel" inputmode="tel" autocomplete="tel" placeholder="(00) 00000-0000" value="${esc(prefill.tel || "")}"></label>
+      </div>
+      <button class="btn primary mt20" id="g-go">Ver meu contrato</button>
+      <p class="note mt12" id="g-msg"></p>
+      <div id="g-list"></div>
+    </div>
+    <div class="foot"><a href="${waLink(DEFAULT_CONTRATADA.whats, "Olá Malta, não estou conseguindo acessar meu contrato.")}" target="_blank" rel="noopener">Precisa de ajuda? Fale com a Malta ↗</a><a href="#admin">Admin</a></div></div>`;
+  $("#g-tel").addEventListener("input", e => e.target.value = maskPhone(e.target.value));
+  const go = async () => {
+    const email = $("#g-email").value.trim().toLowerCase(), tel = $("#g-tel").value.trim(), msg = t => $("#g-msg").textContent = t;
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return msg("Digite um e-mail válido.");
+    if (onlyDigits(tel).length < 10) return msg("Digite o telefone com DDD.");
+    if (!sb) return msg("Sem conexão com o servidor. Tente de novo.");
+    $("#g-go").disabled = true; msg("Buscando seu contrato…"); $("#g-list").innerHTML = "";
+    let res = null;
+    for (const wait of [0, 1500, 4000]) {
+      if (wait) await new Promise(r => setTimeout(r, wait));
+      res = await sb.rpc("buscar_proposta", { p_email: email, p_tel: tel });
+      if (!res.error) break;
+    }
+    $("#g-go").disabled = false;
+    if (res.error) return msg("Não conseguimos buscar agora. Verifique a internet e tente de novo.");
+    const rows = res.data || [];
+    if (!rows.length) return msg("Não encontramos contrato em aberto com esse e-mail e telefone. Confira os dados ou fale com a Malta.");
+    const open = r => openProposta(r, email, tel);
+    if (rows.length === 1) return open(rows[0]);
+    msg("Encontramos mais de um contrato. Escolha:");
+    $("#g-list").innerHTML = rows.map((r, i) => `<button class="opt mt8" data-i="${i}" style="width:100%;text-align:left"><span class="t"><b>${esc(r.config.servico)}${r.config.projeto ? " · " + esc(r.config.projeto) : ""}</b><small>${esc(r.contrato_id)} · ${fmtDate(r.created_at)}</small></span><span class="v">${brl(r.config.total)}</span></button>`).join("");
+    $("#g-list").querySelectorAll("[data-i]").forEach(b => b.onclick = () => open(rows[+b.dataset.i]));
+  };
+  $("#g-go").onclick = go;
+  $("#g-tel").onkeydown = e => { if (e.key === "Enter") go(); };
+}
+function openProposta(row, email, tel) {
+  const cfg = row.config; cfg.id = row.contrato_id;
+  ls.set("mbweb:cfg:" + cfg.id, cfg);
+  const st = ls.get("mbweb:" + cfg.id, null) || { step: 1, cli: { nome: "", doc: "", empresa: "", endereco: "", tel: "", email: "", dominio: "" } };
+  st.gate = { email, tel: maskPhone(tel) };
+  if (!st.cli.email) st.cli.email = email;
+  if (!st.cli.tel) st.cli.tel = maskPhone(tel);
+  ls.set("mbweb:" + cfg.id, st);
+  location.hash = "#p=" + encodeURIComponent(cfg.id);
+}
 async function route() {
   const h = location.hash;
   if (h.startsWith("#admin/contratos")) return renderContratos();
-  if (h.startsWith("#admin")) { A = null; return renderAdmin(); }
+  if (h.startsWith("#admin")) return openAdmin();
+  const pm = h.match(/^#p=([A-Za-z0-9_%-]+)/);
+  if (pm) {
+    const cfg = ls.get("mbweb:cfg:" + decodeURIComponent(pm[1]), null);
+    if (!cfg) return renderGate();
+    CFG = cfg; CFG.contratada = merge(DEFAULT_CONTRATADA, CFG.contratada || {});
+    ST = ls.get("mbweb:" + CFG.id, null) || { step: 1, cli: { nome: "", doc: "", empresa: "", endereco: "", tel: "", email: "", dominio: "" } };
+    return renderClient();
+  }
   const m = h.match(/^#c(=?)([A-Za-z0-9_-]+)/);
   if (m) {
     try { CFG = m[1] ? b64urlDecode(m[2]) : await decodeCfg(m[2]); } catch { return renderEmpty(["Este link", "não é válido."]); }
@@ -1182,7 +1262,7 @@ async function route() {
     ST = ls.get("mbweb:" + CFG.id, null) || { step: 1, cli: { nome: "", doc: "", empresa: "", endereco: "", tel: "", email: "", dominio: "" } };
     return renderClient();
   }
-  renderEmpty(["Nenhum contrato", "carregado."]);
+  renderGate();
 }
 window.addEventListener("hashchange", route);
 route();
