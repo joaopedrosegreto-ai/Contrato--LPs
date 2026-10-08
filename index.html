@@ -145,6 +145,15 @@ ul.scope li::before{content:"";flex:0 0 16px;height:16px;margin-top:2px;border-r
 .copy button{border:0;border-radius:100px;background:var(--bg);color:var(--white);padding:0 18px;font-weight:600;font-size:13px;cursor:pointer}
 
 .note{font-size:13px;color:var(--grey);line-height:1.55}
+.upl{display:block;margin-top:14px;border:1px dashed var(--line-2);border-radius:12px;padding:18px;text-align:center;cursor:pointer;transition:border-color .3s,background .3s}
+.upl:hover{border-color:var(--white)}
+.upl input{display:none}
+.upl b{display:block;font-size:14.5px;font-weight:700}
+.upl b::before{content:"+ ";font-weight:400}
+.upl small{display:block;color:var(--grey);font-size:12px;margin-top:4px;word-break:break-all}
+.upl.done{border-style:solid;border-color:#7ed39a;background:rgba(126,211,154,.06)}
+.upl.done b::before{content:"✓ ";color:#7ed39a}
+.upl.busy{opacity:.6;pointer-events:none}
 .reg{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey)}
 .reg:empty{display:none}
 .reg .ok{color:var(--white);display:inline-flex;align-items:center;gap:8px}
@@ -332,6 +341,7 @@ function packCfg(cfg, presetKey) {
   if (cfg.manutencao > 0) o.m = cfg.manutencao;
   o.p = [p.vista ? (+p.vistaDesc || 0) : -1, p.entrada ? +p.entradaPct : -1, p.parcelado ? +p.parcelas : -1, p.cartao ? 1 : 0];
   if (p.cartao && p.cartaoObs && p.cartaoObs !== CARTAO_OBS) o.co = p.cartaoObs;
+  if (p.cartao && +p.cartaoTaxa) o.ct = +p.cartaoTaxa;
   const c = {}; for (const key in cfg.contratada) if (cfg.contratada[key] && cfg.contratada[key] !== DEFAULT_CONTRATADA[key]) c[key] = cfg.contratada[key];
   if (Object.keys(c).length) o.c = c;
   return o;
@@ -343,7 +353,7 @@ function unpackCfg(o) {
     itens: o.it ? o.it.map(x => typeof x === "number" ? P.itens[x] : x).filter(Boolean) : [...P.itens],
     obs: o.o || "", total: o.t, prazo: o.z ?? P.prazo, revisoes: o.r ?? 2, garantia: o.g ?? 30,
     hospedagem: o.h ? "incluso" : "cliente", manutencao: o.m || 0,
-    pag: { vista: pg[0] >= 0, vistaDesc: Math.max(0, pg[0]), entrada: pg[1] >= 0, entradaPct: pg[1] >= 0 ? pg[1] : 50, parcelado: pg[2] >= 0, parcelas: pg[2] >= 0 ? pg[2] : 3, cartao: !!pg[3], cartaoObs: o.co || CARTAO_OBS },
+    pag: { vista: pg[0] >= 0, vistaDesc: Math.max(0, pg[0]), entrada: pg[1] >= 0, entradaPct: pg[1] >= 0 ? pg[1] : 50, parcelado: pg[2] >= 0, parcelas: pg[2] >= 0 ? pg[2] : 3, cartao: !!pg[3], cartaoObs: o.co || CARTAO_OBS, cartaoTaxa: o.ct || 0 },
     contratada: merge(DEFAULT_CONTRATADA, o.c || {})
   };
 }
@@ -421,10 +431,13 @@ function payOptions(cfg) {
     out.push({ id: "PARCELADO", titulo: `Parcelado em ${n}x no PIX`, sub: `1ª parcela agora · demais a cada 30 dias`, total: t, agora: v, parcelas: n, parcela: v, valorLabel: `${n}x ${brl(v)}` });
   }
   if (p.cartao) {
-    out.push({ id: "CARTAO", titulo: "Cartão de crédito", sub: p.cartaoObs || "Link de pagamento enviado pela Malta Business", total: t, agora: 0, valorLabel: brl(t) });
+    const tx = Number(p.cartaoTaxa) || 0, v = round2(t * (1 + tx / 100));
+    out.push({ id: "CARTAO", titulo: "Cartão de crédito", sub: tx > 0 ? `Inclui ${fmtPct(tx)}% de taxa da maquininha` : "Na maquininha ou link de pagamento", total: v, agora: 0, taxa: tx, valorLabel: brl(v) });
   }
   return out;
 }
+const fmtPct = n => String(round2(n)).replace(".", ",");
+const needsReceipt = o => !!o && o.agora > 0;
 function payClauseText(cfg, opt) {
   const t = brl(cfg.total);
   if (!opt) return `O valor total dos serviços é de ${t}.`;
@@ -432,7 +445,7 @@ function payClauseText(cfg, opt) {
     case "VISTA": return `O valor total dos serviços é de ${t}. O CONTRATANTE optou pelo pagamento à vista via PIX no valor de ${brl(opt.total)}${cfg.pag.vistaDesc > 0 ? ` (já aplicado desconto de ${cfg.pag.vistaDesc}%)` : ""}, a ser realizado no ato da assinatura deste contrato.`;
     case "ENTRADA": return `O valor total dos serviços é de ${t}. O CONTRATANTE optou pelo pagamento de entrada de ${opt.pct}% (${brl(opt.agora)}) via PIX no ato da assinatura, e o saldo de ${brl(opt.saldo)} na entrega/publicação do projeto, antes da transferência definitiva de acessos.`;
     case "PARCELADO": return `O valor total dos serviços é de ${t}. O CONTRATANTE optou pelo pagamento em ${opt.parcelas} parcelas de ${brl(opt.parcela)} via PIX, sendo a primeira no ato da assinatura e as demais a cada 30 (trinta) dias.`;
-    case "CARTAO": return `O valor total dos serviços é de ${t}. O CONTRATANTE optou pelo pagamento via cartão de crédito, por meio de link de pagamento enviado pela CONTRATADA. ${cfg.pag.cartaoObs ? cfg.pag.cartaoObs + "." : ""} O início dos trabalhos fica condicionado à aprovação da transação.`;
+    case "CARTAO": return `O valor total dos serviços é de ${t}. O CONTRATANTE optou pelo pagamento via cartão de crédito, no valor de ${brl(opt.total)}${opt.taxa > 0 ? `, já incluída a taxa de ${fmtPct(opt.taxa)}% da operadora do cartão (maquininha)` : ""}, por meio de maquininha ou link de pagamento fornecido pela CONTRATADA. O início dos trabalhos fica condicionado à aprovação da transação.`;
   }
 }
 
@@ -554,6 +567,7 @@ function buildPDF(cfg, st, opt) {
     `Documento: ${st.cli.doc}   |   E-mail: ${st.cli.email}   |   Telefone: ${st.cli.tel}`,
     `Data/hora da assinatura: ${fmtDateTime(st.assinadoEm)}`,
     `Forma de pagamento escolhida: ${opt ? opt.titulo + " (" + opt.valorLabel + ")" : "-"}`,
+    `Comprovante de pagamento: ${needsReceipt(opt) ? (st.comprovante ? "PIX anexado pelo contratante (" + st.comprovante.nome + ")" : "-") : opt && opt.id === "CARTAO" ? "pagamento via cartão a combinar" : "-"}`,
     `Identificador do contrato: ${cfg.id}`,
     `Dispositivo: ${(st.ua || navigator.userAgent).slice(0, 110)}`
   ];
@@ -699,30 +713,105 @@ function stepAssinatura() {
   const opts = payOptions(CFG);
   if (!ST.pagamento && opts.length) ST.pagamento = opts[0].id;
   return `
-  ${headHTML("Passo 03 — Pagamento e assinatura", "Último passo:", "escolha e assine.")}
+  ${headHTML("Passo 03 — Pagamento e assinatura", "Último passo:", "pague e assine.", "Escolha a forma de pagamento. No PIX, anexe o comprovante para liberar a assinatura.")}
   <div class="card">
     <div class="sec"><h3>Bloco A — Forma de pagamento</h3></div>
     <div class="opts">${opts.map(o => `
       <label class="opt ${ST.pagamento === o.id ? "sel" : ""}" data-id="${o.id}"><input type="radio" name="pg" value="${o.id}" ${ST.pagamento === o.id ? "checked" : ""}><span class="r"></span><span class="t"><b>${esc(o.titulo)}</b><small>${esc(o.sub)}</small></span><span class="v">${esc(o.valorLabel)}</span></label>`).join("")}
     </div>
   </div>
+  <div class="card" id="paypanel"></div>
   <div class="card">
-    <div class="sec"><h3>Bloco B — Assinatura digital</h3></div>
+    <div class="sec"><h3>Bloco C — Assinatura digital</h3></div>
     <p class="note" style="margin-bottom:12px">Assine com o dedo ou mouse no campo abaixo.</p>
     <div class="sig"><canvas id="pad"></canvas><div class="ln"></div><div class="ph" id="ph">Assine aqui</div></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">
       <span class="note">${esc(ST.cli.nome)}</span><button class="mini" id="clear">Limpar</button>
     </div>
-    <div class="row"><button class="btn ghost" id="back3">Voltar</button><button class="btn primary" id="next3">Finalizar contrato</button></div>
+    <div class="row"><button class="btn ghost" id="back3">Voltar</button><button class="btn primary" id="next3" disabled>Finalizar contrato</button></div>
+    <p class="note center mt12" id="next3hint"></p>
   </div>`;
+}
+const receiptOk = () => { const o = currentOpt(); return !needsReceipt(o) || (ST.comprovante && ST.comprovante.pagamento === ST.pagamento); };
+function payPanelHTML() {
+  const o = currentOpt(); if (!o) return "";
+  if (o.id === "CARTAO") return `<div class="sec"><h3>Bloco B — Pagamento no cartão</h3></div>
+    <div class="kv"><span>Valor no cartão</span><b>${brl(o.total)}</b></div>
+    ${o.taxa > 0 ? `<div class="kv"><span>Taxa da maquininha</span><b>${fmtPct(o.taxa)}%</b></div>` : ""}
+    <p class="note mt12">A Malta Business vai combinar com você o pagamento no cartão (maquininha ou link). Pode assinar o contrato abaixo.</p>`;
+  const c = ST.comprovante, ok = receiptOk();
+  return `<div class="sec"><h3>Bloco B — Pagamento via PIX</h3></div>
+    <div class="pix">
+      <div style="font-weight:800;font-size:17px;letter-spacing:-.01em">Pague ${o.id === "VISTA" ? "o valor total" : o.id === "PARCELADO" ? "a 1ª parcela" : "a entrada"} de ${brl(o.agora)}</div>
+      <div id="qr"></div>
+      <div style="font-size:12px;color:#5a5a58">Escaneie o QR Code no app do seu banco ou use o PIX copia e cola:</div>
+      <div class="copy"><input id="pixcode" readonly><button id="copypix">Copiar</button></div>
+      <div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8d8d8a;margin-top:12px">Favorecido: ${esc(CFG.contratada.nome)}</div>
+    </div>
+    <label class="upl ${ok ? "done" : ""}" id="uplbox">
+      <input type="file" id="comp" accept="image/*,application/pdf">
+      <b id="upltitle">${ok ? "Comprovante anexado" : "Anexar comprovante do PIX"}</b>
+      <small id="uplsub">${ok ? esc(c.nome) + " · toque para trocar" : c ? "O comprovante anterior era de outra forma de pagamento. Anexe o novo." : "Foto, print ou PDF · obrigatório para assinar"}</small>
+    </label>`;
+}
+function bindPayPanel() {
+  const o = currentOpt();
+  if ($("#qr")) {
+    const code = pixPayload({ key: CFG.contratada.pix, name: CFG.contratada.nome, city: CFG.contratada.cidade, amount: o.agora, txid: CFG.id });
+    $("#pixcode").value = code;
+    new QRCode($("#qr"), { text: code, width: 190, height: 190, colorDark: "#0a0a0a", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.M });
+    $("#copypix").onclick = async () => { try { await navigator.clipboard.writeText(code); } catch { $("#pixcode").select(); document.execCommand("copy"); } toast("PIX copia e cola copiado!"); };
+  }
+  const inp = $("#comp"); if (!inp) return;
+  inp.onchange = async () => {
+    const f = inp.files[0]; if (!f) return;
+    $("#uplbox").classList.add("busy"); $("#upltitle").textContent = "Enviando comprovante…"; $("#uplsub").textContent = f.name;
+    try { ST.comprovante = await uploadComprovante(f); save(); toast("Comprovante anexado!"); }
+    catch (e) { toast(e.message || "Não foi possível enviar o comprovante. Tente de novo."); }
+    renderPayPanel(); refreshNext();
+  };
+}
+function renderPayPanel() { $("#paypanel").innerHTML = payPanelHTML(); bindPayPanel(); }
+async function compressImage(file) {
+  const bmp = await createImageBitmap(file);
+  const k = Math.min(1, 1800 / Math.max(bmp.width, bmp.height));
+  const cv = document.createElement("canvas"); cv.width = Math.round(bmp.width * k); cv.height = Math.round(bmp.height * k);
+  cv.getContext("2d").drawImage(bmp, 0, 0, cv.width, cv.height);
+  return await new Promise(r => cv.toBlob(r, "image/jpeg", 0.82));
+}
+async function uploadComprovante(file) {
+  if (!sb) throw new Error("Sem conexão com o servidor. Tente de novo.");
+  const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+  if (!isPdf && !file.type.startsWith("image/")) throw new Error("Envie uma imagem (foto/print) ou um PDF.");
+  let blob = file, type = isPdf ? "application/pdf" : file.type, ext = isPdf ? "pdf" : (file.type.split("/")[1] || "jpg");
+  if (!isPdf) { try { const b = await compressImage(file); if (b) { blob = b; type = "image/jpeg"; ext = "jpg"; } } catch {} }
+  if (blob.size > 5 * 1024 * 1024) throw new Error("Arquivo muito grande (máx. 5 MB).");
+  const path = `${CFG.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  let error = null;
+  for (const wait of [0, 1500, 4000]) {
+    if (wait) await new Promise(r => setTimeout(r, wait));
+    try { ({ error } = await sb.storage.from("comprovantes").upload(path, blob, { contentType: type, upsert: false })); } catch (e) { error = e; }
+    if (!error) break;
+  }
+  if (error) throw new Error("Não foi possível enviar o comprovante. Verifique a internet e tente de novo.");
+  return { path, nome: file.name.slice(0, 120), pagamento: ST.pagamento, enviadoEm: new Date().toISOString() };
 }
 function bindAssinatura() {
   document.querySelectorAll(".opt").forEach(el => el.onclick = () => {
+    if (ST.pagamento === el.dataset.id) return;
     ST.pagamento = el.dataset.id; save();
     document.querySelectorAll(".opt").forEach(o => o.classList.toggle("sel", o === el));
+    renderPayPanel(); refreshNext();
   });
+  renderPayPanel();
   const cv = $("#pad"), ctx = cv.getContext("2d");
   let drawing = false, dirty = false, last = null;
+  refreshNext = () => {
+    const rOk = receiptOk();
+    $("#next3").disabled = !(rOk && dirty);
+    $("#next3hint").textContent = !rOk && !dirty ? "Para finalizar: anexe o comprovante do PIX e assine." : !rOk ? "Para finalizar: anexe o comprovante do PIX." : !dirty ? "Para finalizar: faça sua assinatura." : "";
+  };
+  refreshNext();
   const fit = () => {
     const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
     cv.width = r.width * dpr; cv.height = r.height * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -735,13 +824,15 @@ function bindAssinatura() {
     if (!drawing) return; const p = pos(e);
     ctx.beginPath(); ctx.moveTo(last.x, last.y);
     const mx = (last.x + p.x) / 2, my = (last.y + p.y) / 2; ctx.quadraticCurveTo(last.x, last.y, mx, my); ctx.lineTo(p.x, p.y); ctx.stroke();
-    last = p; dirty = true;
+    if (!dirty) { dirty = true; refreshNext(); }
+    last = p;
   });
   ["pointerup", "pointercancel", "pointerleave"].forEach(ev => cv.addEventListener(ev, () => drawing = false));
-  $("#clear").onclick = () => { ctx.clearRect(0, 0, cv.width, cv.height); dirty = false; $("#ph").style.display = ""; };
+  $("#clear").onclick = () => { ctx.clearRect(0, 0, cv.width, cv.height); dirty = false; $("#ph").style.display = ""; refreshNext(); };
   $("#back3").onclick = () => { ST.step = 2; save(); renderClient(); };
   $("#next3").onclick = () => {
     if (!ST.pagamento) return toast("Escolha a forma de pagamento.");
+    if (!receiptOk()) return toast("Anexe o comprovante do PIX para finalizar.");
     if (!dirty) return toast("Faça sua assinatura no campo indicado.");
     const off = document.createElement("canvas");
     off.width = 600; off.height = Math.round(600 * cv.height / cv.width);
@@ -754,19 +845,14 @@ function bindAssinatura() {
   };
 }
 
+let refreshNext = () => {};
 function currentOpt() { return payOptions(CFG).find(o => o.id === ST.pagamento); }
 function stepFinal() {
   const o = currentOpt();
-  const pixBlock = o && o.agora > 0 && CFG.contratada.pix ? `
-    <div class="pix mt16">
-      <div style="font-weight:800;font-size:17px;letter-spacing:-.01em">Pague ${o.id === "VISTA" ? "o valor total" : o.id === "PARCELADO" ? "a 1ª parcela" : "a entrada"} de ${brl(o.agora)}</div>
-      <div id="qr"></div>
-      <div style="font-size:12px;color:#5a5a58">Escaneie o QR Code no app do seu banco ou use o PIX copia e cola:</div>
-      <div class="copy"><input id="pixcode" readonly><button id="copypix">Copiar</button></div>
-      <div style="font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#8d8d8a;margin-top:12px">Favorecido: ${esc(CFG.contratada.nome)}</div>
-    </div>` : o && o.id === "CARTAO" ? `<p class="note mt16 center">A Malta Business vai te enviar o link de pagamento no cartão pelo WhatsApp.</p>` : "";
+  const extra = needsReceipt(o) && ST.comprovante ? `<div class="kv"><span>Comprovante PIX</span><b>Enviado ✓</b></div>`
+    : o && o.id === "CARTAO" ? `<p class="note mt12">A Malta Business vai combinar com você o pagamento no cartão (${brl(o.total)}).</p>` : "";
   return `
-  ${headHTML("Passo 04 — Pagamento e envio", "Tudo certo.", "Contrato assinado.", "Agora é só pagar e enviar o contrato pra Malta pra darmos início ao seu projeto.")}
+  ${headHTML("Passo 04 — Concluído", "Tudo certo.", "Contrato assinado.", needsReceipt(o) ? "Recebemos seu contrato e o comprovante do PIX. A Malta vai conferir o pagamento e dar início ao seu projeto." : "Recebemos seu contrato. A Malta vai entrar em contato para o pagamento e o início do projeto.")}
   <div class="card">
     <div class="sec"><h3>Resumo</h3></div>
     <div class="kv"><span>Contrato</span><b>${esc(CFG.id)}</b></div>
@@ -774,15 +860,15 @@ function stepFinal() {
     <div class="kv"><span>Serviço</span><b>${esc(CFG.servico)}${CFG.projeto ? " · " + esc(CFG.projeto) : ""}</b></div>
     <div class="kv"><span>Pagamento</span><b>${o ? esc(o.titulo) : "-"}</b></div>
     <div class="kv"><span>Assinado em</span><b>${fmtDateTime(ST.assinadoEm)}</b></div>
+    ${extra}
     <div id="regstatus" class="reg"></div>
-    ${pixBlock}
   </div>
   <div class="card">
-    <div class="sec"><h3>Finalize o envio</h3></div>
-    <p class="note" style="margin-bottom:14px">Envie o contrato assinado${o && o.agora > 0 ? " e o comprovante do PIX" : ""} para a Malta Business para darmos início ao seu projeto.</p>
+    <div class="sec"><h3>Sua cópia</h3></div>
+    <p class="note" style="margin-bottom:14px">Seu contrato já foi registrado com a Malta. Baixe uma cópia em PDF ou envie também pelo WhatsApp, se preferir.</p>
     <div class="grid">
-      <button class="btn primary" id="send">Enviar contrato para a Malta</button>
-      <button class="btn ghost" id="pdf">Baixar contrato em PDF</button>
+      <button class="btn primary" id="pdf">Baixar contrato em PDF</button>
+      <button class="btn ghost" id="send">Enviar pelo WhatsApp</button>
     </div>
     <button class="mini mt16" id="restart" style="display:block;margin-left:auto;margin-right:auto">Corrigir dados e assinar de novo</button>
   </div>`;
@@ -796,7 +882,9 @@ async function saveSigned() {
     contrato_id: CFG.id, servico: CFG.servico, projeto: CFG.projeto || null, total: CFG.total,
     pagamento_id: ST.pagamento, pagamento: o ? `${o.titulo} (${o.valorLabel})` : null, valor_agora: o ? o.agora : null,
     cliente_nome: ST.cli.nome, cliente_doc: ST.cli.doc, cliente_email: ST.cli.email, cliente_tel: ST.cli.tel,
-    cliente: ST.cli, config: CFG, assinatura: ST.assinatura, assinado_em: ST.assinadoEm, user_agent: ST.ua || navigator.userAgent
+    cliente: ST.cli, config: CFG, assinatura: ST.assinatura, assinado_em: ST.assinadoEm, user_agent: ST.ua || navigator.userAgent,
+    comprovante_path: needsReceipt(o) && ST.comprovante ? ST.comprovante.path : null,
+    comprovante_nome: needsReceipt(o) && ST.comprovante ? ST.comprovante.nome : null
   };
   let error = null;
   for (const wait of [0, 1500, 4000, 8000]) { // tenta de novo se a rede/banco oscilar
@@ -833,18 +921,12 @@ function waText() {
     c.dominio ? `*Domínio:* ${c.dominio}` : null,
     `*Assinado em:* ${fmtDateTime(ST.assinadoEm)}`,
     ``,
-    `Segue o PDF do contrato assinado${o && o.agora > 0 ? " e o comprovante do PIX" : ""}.`
+    needsReceipt(o) && ST.comprovante ? `Comprovante do PIX anexado no contrato.` : `Segue o PDF do contrato assinado.`
   ].filter(l => l !== null).join("\n");
 }
 function bindFinal() {
   const o = currentOpt();
   saveSigned();
-  if ($("#qr")) {
-    const code = pixPayload({ key: CFG.contratada.pix, name: CFG.contratada.nome, city: CFG.contratada.cidade, amount: o.agora, txid: CFG.id });
-    $("#pixcode").value = code;
-    new QRCode($("#qr"), { text: code, width: 190, height: 190, colorDark: "#0a0a0a", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.M });
-    $("#copypix").onclick = async () => { try { await navigator.clipboard.writeText(code); } catch { $("#pixcode").select(); document.execCommand("copy"); } toast("PIX copia e cola copiado!"); };
-  }
   const fileName = () => `Contrato-${CFG.id}-${plain(ST.cli.nome).split(" ")[0]}.pdf`;
   $("#pdf").onclick = () => { buildPDF(CFG, ST, o).save(fileName()); };
   $("#send").onclick = async () => {
@@ -862,7 +944,7 @@ function bindFinal() {
     else if (CFG.contratada.email) location.href = `mailto:${CFG.contratada.email}?subject=${encodeURIComponent("Contrato assinado " + CFG.id)}&body=${encodeURIComponent(text.replace(/\*/g, ""))}`;
     toast("PDF baixado. Anexe-o na conversa com a Malta.");
   };
-  $("#restart").onclick = () => { if (confirm("Refazer o preenchimento? A assinatura atual será descartada.")) { ST = { step: 1, cli: ST.cli }; save(); renderClient(); } };
+  $("#restart").onclick = () => { if (confirm("Refazer o preenchimento? A assinatura atual será descartada.")) { ST = { step: 1, cli: ST.cli, pagamento: ST.pagamento, comprovante: ST.comprovante }; save(); renderClient(); } };
 }
 
 /* ============================================================
@@ -874,7 +956,7 @@ function adminDefaults() {
   const base = {
     preset: "lp", servico: PRESETS.lp.nome, projeto: "", itens: [...PRESETS.lp.itens], obs: "",
     total: 1500, prazo: PRESETS.lp.prazo, revisoes: 2, garantia: 30, hospedagem: "cliente", manutencao: 0,
-    pag: { vista: true, vistaDesc: 5, entrada: true, entradaPct: 50, parcelado: false, parcelas: 3, cartao: false, cartaoObs: CARTAO_OBS },
+    pag: { vista: true, vistaDesc: 5, entrada: true, entradaPct: 50, parcelado: false, parcelas: 3, cartao: false, cartaoObs: CARTAO_OBS, cartaoTaxa: 0 },
     contratada: { ...DEFAULT_CONTRATADA }
   };
   if (saved) { base.contratada = merge(base.contratada, saved.contratada || {}); base.pag = { ...base.pag, ...saved.pag }; }
@@ -921,7 +1003,7 @@ function renderAdmin() {
       <div class="payrow"><label class="toggle"><input type="checkbox" id="p-vista" ${A.pag.vista ? "checked" : ""}>À vista no PIX — desconto (%)</label><input class="in" id="p-vistaDesc" type="number" min="0" max="50" value="${A.pag.vistaDesc}"></div>
       <div class="payrow"><label class="toggle"><input type="checkbox" id="p-entrada" ${A.pag.entrada ? "checked" : ""}>Entrada + saldo na entrega — entrada (%)</label><input class="in" id="p-entradaPct" type="number" min="10" max="90" value="${A.pag.entradaPct}"></div>
       <div class="payrow"><label class="toggle"><input type="checkbox" id="p-parcelado" ${A.pag.parcelado ? "checked" : ""}>Parcelado no PIX — nº de parcelas</label><input class="in" id="p-parcelas" type="number" min="2" max="12" value="${A.pag.parcelas}"></div>
-      <div class="payrow"><label class="toggle"><input type="checkbox" id="p-cartao" ${A.pag.cartao ? "checked" : ""}>Cartão de crédito (link enviado por você)</label><span></span></div>
+      <div class="payrow"><label class="toggle"><input type="checkbox" id="p-cartao" ${A.pag.cartao ? "checked" : ""}>Cartão de crédito — taxa da maquininha (%)</label><input class="in" id="p-cartaoTaxa" type="number" min="0" max="30" step="0.01" value="${A.pag.cartaoTaxa || 0}"></div>
       <div id="paypreview" class="note mt12"></div>
     </div>
 
@@ -952,7 +1034,7 @@ function readAdmin() {
   A.servico = v("a-servico").trim(); A.projeto = v("a-projeto").trim(); A.obs = v("a-obs").trim();
   A.itens = [...document.querySelectorAll("#items input")].map(i => i.value.trim()).filter(Boolean);
   A.total = n("a-total"); A.prazo = n("a-prazo"); A.revisoes = n("a-rev"); A.garantia = n("a-gar"); A.hospedagem = v("a-hosp"); A.manutencao = n("a-man");
-  A.pag = { vista: c("p-vista"), vistaDesc: n("p-vistaDesc"), entrada: c("p-entrada"), entradaPct: n("p-entradaPct"), parcelado: c("p-parcelado"), parcelas: n("p-parcelas"), cartao: c("p-cartao"), cartaoObs: A.pag.cartaoObs };
+  A.pag = { vista: c("p-vista"), vistaDesc: n("p-vistaDesc"), entrada: c("p-entrada"), entradaPct: n("p-entradaPct"), parcelado: c("p-parcelado"), parcelas: n("p-parcelas"), cartao: c("p-cartao"), cartaoTaxa: n("p-cartaoTaxa"), cartaoObs: A.pag.cartaoObs };
   A.contratada = { ...A.contratada, nome: v("k-nome").trim(), doc: v("k-doc").trim(), cidade: v("k-cidade").trim(), uf: v("k-uf").trim().toUpperCase(), pix: v("k-pix").trim(), whats: v("k-whats").trim(), email: v("k-email").trim() };
   ls.set("mbweb:admin", { contratada: A.contratada, pag: A.pag });
 }
@@ -1013,7 +1095,7 @@ async function renderContratos() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return loginForm();
   const { data, error } = await sb.from("contratos_web")
-    .select("id,contrato_id,servico,projeto,total,pagamento,cliente_nome,cliente_doc,cliente_email,cliente_tel,assinado_em,status,ip")
+    .select("id,contrato_id,servico,projeto,total,pagamento,cliente_nome,cliente_doc,cliente_email,cliente_tel,assinado_em,status,ip,comprovante_path,comprovante_nome")
     .order("created_at", { ascending: false });
   const who = `<div class="ct-meta" style="justify-content:space-between;margin-bottom:16px"><span>Conectado como ${esc(session.user.email)}</span><button class="mini" id="logout">Sair</button></div>`;
   if (error) { $("#cbox").innerHTML = who + `<p class="note">Erro ao carregar: ${esc(error.message)}</p>`; return bindLogout(); }
@@ -1026,16 +1108,23 @@ async function renderContratos() {
       <div class="ct-meta"><span>${esc(r.cliente_doc)}</span><span>${esc(r.cliente_email)}</span><span>${esc(r.cliente_tel)}</span>${r.ip ? `<span>IP ${esc(r.ip)}</span>` : ""}</div>
       <div class="ct-act"><button class="pill ${r.status === "pago" ? "pago" : ""}" data-st="${r.id}" data-cur="${esc(r.status)}">${r.status === "pago" ? "Pago" : "Aguardando pagamento"}</button>
         <button class="mini" data-pdf="${r.id}">Baixar PDF</button>
+        ${r.comprovante_path ? `<button class="mini" data-comp="${esc(r.comprovante_path)}">Ver comprovante</button>` : ""}
         <a class="mini" style="text-decoration:none" target="_blank" rel="noopener" href="${waLink(r.cliente_tel, `Olá ${String(r.cliente_nome).split(" ")[0]}, aqui é o Malta! Recebi seu contrato ${r.contrato_id}.`)}">WhatsApp do cliente</a></div>
     </div>`).join("");
   bindLogout();
   document.querySelectorAll("[data-pdf]").forEach(b => b.onclick = async () => {
     b.textContent = "Gerando…";
-    const { data: r, error } = await sb.from("contratos_web").select("contrato_id,config,cliente,assinatura,assinado_em,user_agent,pagamento_id").eq("id", b.dataset.pdf).single();
+    const { data: r, error } = await sb.from("contratos_web").select("contrato_id,config,cliente,assinatura,assinado_em,user_agent,pagamento_id,comprovante_path,comprovante_nome").eq("id", b.dataset.pdf).single();
     b.textContent = "Baixar PDF";
     if (error) return toast("Erro ao gerar o PDF.");
-    const st = { cli: r.cliente, assinatura: r.assinatura, assinadoEm: r.assinado_em, ua: r.user_agent };
+    const st = { cli: r.cliente, assinatura: r.assinatura, assinadoEm: r.assinado_em, ua: r.user_agent, comprovante: r.comprovante_path ? { nome: r.comprovante_nome } : null };
     buildPDF(r.config, st, payOptions(r.config).find(o => o.id === r.pagamento_id)).save(`Contrato-${r.contrato_id}-${plain(r.cliente.nome).split(" ")[0]}.pdf`);
+  });
+  document.querySelectorAll("[data-comp]").forEach(b => b.onclick = async () => {
+    const w = window.open("", "_blank");
+    const { data: u, error } = await sb.storage.from("comprovantes").createSignedUrl(b.dataset.comp, 300);
+    if (error || !u) { if (w) w.close(); return toast("Não foi possível abrir o comprovante."); }
+    if (w) w.location = u.signedUrl; else location.href = u.signedUrl;
   });
   document.querySelectorAll("[data-st]").forEach(b => b.onclick = async () => {
     const next = b.dataset.cur === "pago" ? "aguardando_pagamento" : "pago";
