@@ -1165,7 +1165,10 @@ function loginForm(after = renderContratos) {
       <label class="f"><span>Senha</span><input class="in" id="l-pass" type="password" autocomplete="current-password" minlength="8"></label>
     </div>
     <button class="btn primary mt20" id="l-in">Entrar</button>
-    <button class="mini mt16" id="l-up" style="display:block;margin:16px auto 0">Primeiro acesso: criar minha senha</button>
+    <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:16px">
+      <button class="mini" id="l-forgot">Esqueci minha senha</button>
+      <button class="mini" id="l-up">Primeiro acesso: criar minha senha</button>
+    </div>
     <p class="note mt12" id="l-msg"></p></div>`;
   const msg = t => $("#l-msg").textContent = t;
   const vals = () => ({ email: $("#l-email").value.trim(), password: $("#l-pass").value });
@@ -1175,6 +1178,13 @@ function loginForm(after = renderContratos) {
     after();
   };
   $("#l-pass").onkeydown = e => { if (e.key === "Enter") $("#l-in").click(); };
+  $("#l-forgot").onclick = async () => {
+    const email = $("#l-email").value.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return msg("Digite seu e-mail acima e toque de novo em Esqueci minha senha.");
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname + "#admin" });
+    if (error) return msg(error.message);
+    msg("Se esse e-mail tiver acesso, enviamos um link para criar uma nova senha. Abra o link neste aparelho.");
+  };
   $("#l-up").onclick = async () => {
     const v = vals(); if (v.password.length < 8) return msg("Use uma senha com pelo menos 8 caracteres.");
     const { data, error } = await sb.auth.signUp({ ...v, options: { emailRedirectTo: location.origin + location.pathname + "#admin/contratos" } });
@@ -1243,8 +1253,42 @@ function openProposta(row, email, tel) {
   ls.set("mbweb:" + cfg.id, st);
   location.hash = "#p=" + encodeURIComponent(cfg.id);
 }
+function renderNovaSenha() {
+  $("#app").innerHTML = `<div class="wrap fade">${brandHTML("Admin · Nova senha")}
+    ${headHTML("Recuperar acesso", "Crie sua", "nova senha.")}
+    <div class="card" style="max-width:440px">
+      <div class="grid">
+        <label class="f"><span>Nova senha</span><input class="in" id="n-pass" type="password" autocomplete="new-password" minlength="8"></label>
+        <label class="f"><span>Repita a nova senha</span><input class="in" id="n-pass2" type="password" autocomplete="new-password" minlength="8"></label>
+      </div>
+      <button class="btn primary mt20" id="n-save">Salvar nova senha</button>
+      <p class="note mt12" id="n-msg"></p>
+    </div></div>`;
+  const msg = t => $("#n-msg").textContent = t;
+  $("#n-save").onclick = async () => {
+    const a = $("#n-pass").value, b = $("#n-pass2").value;
+    if (a.length < 8) return msg("Use pelo menos 8 caracteres.");
+    if (a !== b) return msg("As duas senhas não são iguais.");
+    $("#n-save").disabled = true;
+    const { error } = await sb.auth.updateUser({ password: a });
+    $("#n-save").disabled = false;
+    if (error) return msg(error.message);
+    toast("Senha alterada!");
+    location.hash = "#admin/contratos";
+  };
+}
 async function route() {
   const h = location.hash;
+  // volta do e-mail de recuperação: o supabase-js lê o token do endereço e dispara PASSWORD_RECOVERY
+  if (/access_token=|type=recovery/.test(h)) {
+    $("#app").innerHTML = `<div class="wrap" data-validating>${brandHTML("Admin")}<p class="note">Validando link…</p></div>`;
+    // link que não é de recuperação (ex.: confirmação de cadastro) ou que falhou: segue pro admin
+    return setTimeout(() => { if ($("[data-validating]")) location.hash = "#admin/contratos"; }, 6000);
+  }
+  if (/error_code=|error_description=/.test(h)) {
+    renderGate();
+    return toast(/expired/.test(h) ? "Esse link expirou. Peça um novo em Esqueci minha senha." : "Link inválido. Peça um novo em Esqueci minha senha.");
+  }
   if (h.startsWith("#admin/contratos")) return renderContratos();
   if (h.startsWith("#admin")) return openAdmin();
   const pm = h.match(/^#p=([A-Za-z0-9_%-]+)/);
@@ -1264,6 +1308,10 @@ async function route() {
   }
   renderGate();
 }
+if (sb) sb.auth.onAuthStateChange(event => {
+  if (event === "PASSWORD_RECOVERY") return renderNovaSenha();
+  if (event === "SIGNED_IN" && $("[data-validating]")) setTimeout(() => { if ($("[data-validating]")) location.hash = "#admin/contratos"; }, 300);
+});
 window.addEventListener("hashchange", route);
 route();
 </script>
