@@ -41,7 +41,9 @@ Site estático, sem build — tudo em um arquivo:
 
 ```
 index.html              app inteiro (HTML + CSS + JS)
-assets/logo-malta.png   logo
+assets/logo-malta.png   logo (PNG, usado no PDF)
+assets/logo-malta.svg   logo Malta Business (nova identidade)
+assets/favicon.svg      favicon (+ favicon.ico na raiz)
 ```
 
 Bibliotecas via CDN: [jsPDF](https://github.com/parallax/jsPDF) (PDF), [qrcodejs](https://github.com/davidshimjs/qrcodejs) (QR do PIX), [supabase-js](https://github.com/supabase/supabase-js) (banco). Fontes: Archivo + JetBrains Mono (identidade do maltabusiness.vercel.app).

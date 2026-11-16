@@ -4,7 +4,10 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
 <meta name="theme-color" content="#0A0A0A" />
-<link rel="icon" href="assets/logo-malta.png" />
+<link rel="icon" href="favicon.ico" sizes="48x48" />
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg" />
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
 <meta name="description" content="Contrato digital de desenvolvimento web com assinatura eletrônica e pagamento via PIX." />
 <title>Contrato Digital | Malta Business</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15,7 +18,9 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 :root{
-  --bg:#0a0a0a; --bg-2:#0f0f0f; --white:#f3f2ef; --grey:#8d8d8a; --grey-2:#5a5a58;
+  --tinta:#0A0A0A; --grafite:#1C1C1B; --papel:#F3F2EF; --lima:#C8FF2E; --cobalto:#2B4BFF; --areia:#D9D4C7;
+  --accent:var(--lima); --on-accent:var(--tinta); --ok:var(--lima);
+  --bg:#0A0A0A; --bg-2:#1C1C1B; --white:#F3F2EF; --grey:#8D8D8A; --grey-2:#5a5a58;
   --line:rgba(243,242,239,.12); --line-2:rgba(243,242,239,.22); --field:rgba(243,242,239,.035);
   --err:#e5826f; --ease:cubic-bezier(.7,0,.15,1);
   --mono:'JetBrains Mono',ui-monospace,monospace;
@@ -23,7 +28,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{background:var(--bg);color:var(--white);font-family:Archivo,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 body{min-height:100vh;padding:0 16px 80px}
-::selection{background:var(--white);color:var(--bg)}
+::selection{background:var(--accent);color:var(--on-accent)}
 button,input,select,textarea{font:inherit;color:inherit}
 .wrap{max-width:560px;margin:0 auto}
 .wrap.wide{max-width:780px}
@@ -74,7 +79,7 @@ label.f{display:block}
 label.f > span{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey);margin:0 0 8px 2px}
 .in{width:100%;background:var(--field);border:1px solid var(--line);border-radius:10px;padding:13px 14px;font-size:15px;outline:none;transition:border-color .3s}
 .in::placeholder{color:var(--grey-2)}
-.in:focus{border-color:var(--white)}
+.in:focus{border-color:var(--accent)}
 .in.bad{border-color:var(--err)}
 .in[readonly]{color:var(--grey);cursor:default}
 textarea.in{resize:vertical;min-height:76px}
@@ -85,11 +90,11 @@ select.in option{background:#151515}
 .btn{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;border-radius:100px;padding:17px 26px;font-family:Archivo;font-weight:600;font-size:14px;border:1px solid var(--line-2);cursor:pointer;transition:.4s var(--ease);text-decoration:none}
 .btn::after{content:"→";font-weight:400;transition:transform .4s var(--ease)}
 .btn:hover::after{transform:translateX(4px)}
-.btn.primary{background:var(--white);color:var(--bg);border-color:var(--white)}
-.btn.primary:hover{background:transparent;color:var(--white)}
+.btn.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.btn.primary:hover{background:transparent;color:var(--accent)}
 .btn.ghost{background:transparent;color:var(--white)}
 .btn.ghost::after{content:none}
-.btn.ghost:hover{background:var(--white);color:var(--bg);border-color:var(--white)}
+.btn.ghost:hover{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
 .btn[disabled]{opacity:.3;pointer-events:none}
 .row{display:flex;gap:10px;margin-top:20px}
 .row .btn.ghost{flex:0 0 34%}
@@ -115,7 +120,7 @@ ul.scope li::before{content:"";flex:0 0 16px;height:16px;margin-top:2px;border-r
 .contract::-webkit-scrollbar{width:3px}.contract::-webkit-scrollbar-thumb{background:var(--line-2)}
 .check{display:flex;gap:12px;align-items:flex-start;cursor:pointer;font-size:14px;line-height:1.5;color:#cfcdc8}
 .check input{appearance:none;flex:0 0 20px;height:20px;border:1px solid var(--line-2);border-radius:6px;margin-top:1px;display:grid;place-items:center;cursor:pointer}
-.check input:checked{background:var(--white);border-color:var(--white)}
+.check input:checked{background:var(--accent);border-color:var(--accent)}
 .check input:checked::after{content:"";width:9px;height:5px;border:2px solid var(--bg);border-top:0;border-right:0;transform:rotate(-45deg) translate(1px,-1px)}
 
 /* opções de pagamento */
@@ -152,13 +157,13 @@ ul.scope li::before{content:"";flex:0 0 16px;height:16px;margin-top:2px;border-r
 .upl b{display:block;font-size:14.5px;font-weight:700}
 .upl b::before{content:"+ ";font-weight:400}
 .upl small{display:block;color:var(--grey);font-size:12px;margin-top:4px;word-break:break-all}
-.upl.done{border-style:solid;border-color:#7ed39a;background:rgba(126,211,154,.06)}
-.upl.done b::before{content:"✓ ";color:#7ed39a}
+.upl.done{border-style:solid;border-color:#C8FF2E;background:rgba(200,255,46,.06)}
+.upl.done b::before{content:"✓ ";color:#C8FF2E}
 .upl.busy{opacity:.6;pointer-events:none}
 .reg{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:14px;font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--grey)}
 .reg:empty{display:none}
 .reg .ok{color:var(--white);display:inline-flex;align-items:center;gap:8px}
-.reg .ok::before{content:"";width:7px;height:7px;border-radius:50%;background:#7ed39a}
+.reg .ok::before{content:"";width:7px;height:7px;border-radius:50%;background:#C8FF2E}
 .reg .bad{color:var(--err)}
 .tabs{display:flex;gap:6px;margin:-14px 0 30px;flex-wrap:wrap}
 .tabs a{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--grey);text-decoration:none;border:1px solid var(--line);border-radius:100px;padding:9px 14px}
@@ -173,7 +178,7 @@ ul.scope li::before{content:"";flex:0 0 16px;height:16px;margin-top:2px;border-r
 .ct-meta{display:flex;gap:6px 16px;flex-wrap:wrap;font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--grey)}
 .ct-act{display:flex;gap:8px;flex-wrap:wrap}
 .pill{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;border-radius:100px;padding:5px 10px;border:1px solid var(--line-2);color:var(--grey);cursor:pointer;background:none}
-.pill.pago{background:#7ed39a;border-color:#7ed39a;color:var(--bg)}
+.pill.pago{background:#C8FF2E;border-color:#C8FF2E;color:var(--bg)}
 .center{text-align:center}
 .mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}.mt20{margin-top:20px}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--white);color:var(--bg);padding:12px 18px;border-radius:100px;font-size:13px;font-weight:600;opacity:0;transition:.4s var(--ease);pointer-events:none;z-index:50;max-width:calc(100% - 32px)}
@@ -573,7 +578,7 @@ const waLink = (num, text) => { const d = onlyDigits(num); return d ? `https://w
 const merge = (base, extra) => { const o = { ...base }; for (const k in extra) if (extra[k] !== "" && extra[k] != null) o[k] = extra[k]; return o; };
 function brandHTML(sub, whats, msg) {
   const wa = waLink(whats || DEFAULT_CONTRATADA.whats, msg || "Olá Malta, tenho uma dúvida sobre o contrato.");
-  return `<div class="top"><img src="assets/logo-malta.png" alt="Malta">${wa ? `<a class="wa" href="${wa}" target="_blank" rel="noopener">WhatsApp</a>` : ""}</div>
+  return `<div class="top"><img src="assets/logo-malta.svg" alt="Malta Business">${wa ? `<a class="wa" href="${wa}" target="_blank" rel="noopener">WhatsApp</a>` : ""}</div>
   <div class="bar-meta"><span class="eyebrow">${sub}</span><span class="eyebrow r">Belo Horizonte · BR</span></div>`;
 }
 const headHTML = (eyebrow, light, bold, p) => `<div class="head"><span class="eyebrow">${eyebrow}</span><h2><span class="l">${light}</span><span class="b">${bold}</span></h2>${p ? `<p>${p}</p>` : ""}</div>`;
@@ -1096,7 +1101,7 @@ async function loadPropostas() {
   const lbl = { aberta: "Aguardando cliente", assinada: "Assinada", cancelada: "Cancelada" };
   box.innerHTML = `<div class="card mt20"><div class="sec"><h3>Propostas enviadas</h3></div><div class="hist">${data.map(r => `
     <div class="ct"><div class="ct-top"><div><b>${esc(r.config.servico)}${r.config.projeto ? " · " + esc(r.config.projeto) : ""}</b><small>${esc(r.cliente_email)} · ${esc(r.cliente_tel)}</small></div><div class="ct-val">${brl(r.config.total)}</div></div>
-      <div class="ct-meta"><span>${esc(r.contrato_id)}</span><span>${fmtDate(r.created_at)}</span><span style="color:${r.status === "assinada" ? "#7ed39a" : r.status === "cancelada" ? "var(--err)" : "var(--white)"}">${lbl[r.status]}</span>
+      <div class="ct-meta"><span>${esc(r.contrato_id)}</span><span>${fmtDate(r.created_at)}</span><span style="color:${r.status === "assinada" ? "#C8FF2E" : r.status === "cancelada" ? "var(--err)" : "var(--white)"}">${lbl[r.status]}</span>
       ${r.status === "aberta" ? `<button class="mini" data-cancel="${r.id}" style="margin-left:auto">Cancelar</button>` : ""}</div></div>`).join("")}</div></div>`;
   box.querySelectorAll("[data-cancel]").forEach(b => b.onclick = async () => {
     if (!confirm("Cancelar esta proposta? O cliente não vai mais conseguir abrir nem assinar.")) return;
