@@ -1230,7 +1230,7 @@ async function renderContratos() {
         <button class="mini" data-pdf="${r.id}">Baixar PDF</button>
         ${r.comprovante_path ? `<button class="mini" data-comp="${esc(r.comprovante_path)}">Ver comprovante</button>` : ""}
         ${r.autentique_doc_id ? (r.autentique_status === "assinado"
-          ? `<button class="mini" data-autpdf="${r.id}" style="color:#7ed39a;border-color:#7ed39a">Autentique ✓ · PDF assinado</button>`
+          ? `<button class="mini" data-autpdf="${r.id}" style="color:var(--ok);border-color:var(--ok)">Autentique ✓ · PDF assinado</button>`
           : r.autentique_status === "recusado" ? `<span class="mini" style="color:var(--err)">Recusado na Autentique</span>`
           : `<button class="mini" data-autst="${r.id}">Autentique: aguardando assinatura · atualizar</button>`) : ""}
         ${r.autentique_sandbox ? `<span class="mini">teste</span>` : ""}
