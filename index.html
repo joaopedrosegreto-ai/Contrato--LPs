@@ -546,7 +546,7 @@ function buildPDF(cfg, st, opt) {
   const reg = [
     `Contratante: ${st.cli.nome}${st.cli.empresa ? " - " + st.cli.empresa : ""}`,
     `Documento: ${st.cli.doc}   |   E-mail: ${st.cli.email}   |   Telefone: ${st.cli.tel}`,
-    `Data/hora da assinatura: ${fmtDateTime(st.assinadoEm)}`,
+    st.viaAutentique ? `Assinatura: eletrônica via Autentique (folha de assinaturas ao final deste documento)` : `Data/hora da assinatura: ${fmtDateTime(st.assinadoEm)}`,
     `Forma de pagamento escolhida: ${opt ? opt.titulo + " (" + opt.valorLabel + ")" : "-"}`,
     `Comprovante de pagamento: ${needsReceipt(opt) ? (st.comprovante ? "PIX anexado pelo contratante (" + st.comprovante.nome + ")" : "-") : opt && opt.id === "CARTAO" ? "pagamento via cartão a combinar" : "-"}`,
     `Identificador do contrato: ${cfg.id}`,
@@ -554,6 +554,7 @@ function buildPDF(cfg, st, opt) {
   ];
   reg.forEach(r => { doc.splitTextToSize(pdfSafe(r), CW).forEach(l => { doc.text(l, M, y); y += 4.8; }); });
   y += 6;
+  if (!st.viaAutentique) {
   if (st.assinatura) {
     try { const ip = doc.getImageProperties(st.assinatura), w = Math.min(70, 28 * ip.width / ip.height); doc.addImage(st.assinatura, "PNG", M, y, w, w * ip.height / ip.width, undefined, "FAST"); } catch {}
   }
@@ -563,6 +564,7 @@ function buildPDF(cfg, st, opt) {
   doc.text(pdfSafe(st.cli.nome.toUpperCase()), M, y); doc.text(pdfSafe(cfg.contratada.nome), W - M - 75, y);
   y += 4; doc.setTextColor(130, 130, 130);
   doc.text("CONTRATANTE", M, y); doc.text("CONTRATADA", W - M - 75, y);
+  }
   const pages = doc.getNumberOfPages();
   for (let i = 1; i <= pages; i++) { doc.setPage(i); doc.setFontSize(7.5); doc.setTextColor(150); doc.text(`${cfg.id} - pagina ${i}/${pages}`, W / 2, 291, { align: "center" }); }
   return doc;
@@ -599,14 +601,14 @@ function renderClient() {
   if (s === 1) html += stepDados();
   if (s === 2) html += stepContrato();
   if (s === 3) html += stepAssinatura();
-  if (s === 4) html += stepFinal();
+  if (s === 4) html += ST.aut ? stepAut() : stepFinal();
   html += footHTML() + `</div>`;
   app.innerHTML = html;
   window.scrollTo({ top: 0, behavior: "smooth" });
   if (s === 1) bindDados();
   if (s === 2) bindContrato();
   if (s === 3) bindAssinatura();
-  if (s === 4) bindFinal();
+  if (s === 4) ST.aut ? bindAut() : bindFinal();
 }
 
 function stepDados() {
@@ -702,7 +704,12 @@ function stepAssinatura() {
     </div>
   </div>
   <div class="card" id="paypanel"></div>
-  <div class="card">
+  ${autMode() ? `<div class="card">
+    <div class="sec"><h3>Bloco C — Assinatura</h3></div>
+    <p class="note">Ao continuar, geramos seu contrato e você assina aqui mesmo, com validade jurídica pela <b style="color:var(--white)">Autentique</b>. Uma cópia também chega no seu e-mail.</p>
+    <div class="row"><button class="btn ghost" id="back3">Voltar</button><button class="btn primary" id="next3" disabled>Ir para a assinatura</button></div>
+    <p class="note center mt12" id="next3hint"></p>
+  </div>` : `<div class="card">
     <div class="sec"><h3>Bloco C — Assinatura digital</h3></div>
     <p class="note" style="margin-bottom:12px">Assine com o dedo ou mouse no campo abaixo.</p>
     <div class="sig"><canvas id="pad"></canvas><div class="ln"></div><div class="ph" id="ph">Assine aqui</div></div>
@@ -711,7 +718,55 @@ function stepAssinatura() {
     </div>
     <div class="row"><button class="btn ghost" id="back3">Voltar</button><button class="btn primary" id="next3" disabled>Finalizar contrato</button></div>
     <p class="note center mt12" id="next3hint"></p>
-  </div>`;
+  </div>`}`;
+}
+// contratos que vêm de proposta (acesso por e-mail + telefone) assinam pela Autentique; links antigos seguem no quadrinho
+const autMode = () => !!(ST && ST.gate);
+const SANDBOX = new URLSearchParams(location.search).has("sandbox"); // ?sandbox=1 → documento de teste na Autentique (não gasta cota)
+async function callAut(body) {
+  const { data, error } = await sb.functions.invoke("autentique", { body });
+  if (error) { let m = error.message; try { m = (await error.context.json()).error || m; } catch {} throw new Error(m); }
+  return data;
+}
+function bindAssinaturaAut() {
+  refreshNext = () => {
+    const rOk = receiptOk();
+    $("#next3").disabled = !rOk;
+    $("#next3hint").textContent = rOk ? "" : "Para continuar: anexe o comprovante do PIX.";
+  };
+  refreshNext();
+  $("#back3").onclick = () => { ST.step = 2; save(); renderClient(); };
+  $("#next3").onclick = async () => {
+    if (!ST.pagamento) return toast("Escolha a forma de pagamento.");
+    if (!receiptOk()) return toast("Anexe o comprovante do PIX para continuar.");
+    const btn = $("#next3"); btn.disabled = true; btn.textContent = "Gerando seu contrato…";
+    try {
+      const o = currentOpt();
+      ST.assinadoEm = new Date().toISOString(); ST.ua = navigator.userAgent;
+      const st = { ...ST, assinatura: null, viaAutentique: true };
+      const pdf = buildPDF(CFG, st, o).output("datauristring").split(",")[1];
+      // registra o contrato (uma vez) e cria o documento na Autentique
+      if (!ST.autRowId) {
+        const id = crypto.randomUUID();
+        const { error } = await sb.from("contratos_web").insert({
+          id, contrato_id: CFG.id, servico: CFG.servico, projeto: CFG.projeto || null, total: CFG.total,
+          pagamento_id: ST.pagamento, pagamento: o ? `${o.titulo} (${o.valorLabel})` : null, valor_agora: o ? o.agora : null,
+          cliente_nome: ST.cli.nome, cliente_doc: ST.cli.doc, cliente_email: ST.cli.email, cliente_tel: ST.cli.tel,
+          cliente: ST.cli, config: CFG, assinatura: null, assinado_em: ST.assinadoEm, user_agent: ST.ua,
+          comprovante_path: needsReceipt(o) && ST.comprovante ? ST.comprovante.path : null,
+          comprovante_nome: needsReceipt(o) && ST.comprovante ? ST.comprovante.nome : null
+        });
+        if (error) throw new Error("Não foi possível registrar o contrato. Tente de novo.");
+        ST.autRowId = id; ST.salvo = true; save();
+      }
+      const r = await callAut({ action: "criar", id: ST.autRowId, pdf, sandbox: SANDBOX });
+      ST.aut = { id: r.id, link: r.link || null, status: r.status };
+      ST.step = 4; save(); renderClient();
+    } catch (e) {
+      toast(e.message || "Não foi possível gerar a assinatura. Tente de novo.");
+      btn.disabled = false; btn.textContent = "Ir para a assinatura";
+    }
+  };
 }
 const receiptOk = () => { const o = currentOpt(); return !needsReceipt(o) || (ST.comprovante && ST.comprovante.pagamento === ST.pagamento); };
 function payPanelHTML() {
@@ -785,6 +840,7 @@ function bindAssinatura() {
     renderPayPanel(); refreshNext();
   });
   renderPayPanel();
+  if (autMode()) return bindAssinaturaAut();
   const cv = $("#pad"), ctx = cv.getContext("2d");
   let drawing = false, dirty = false, last = null;
   refreshNext = () => {
@@ -828,6 +884,42 @@ function bindAssinatura() {
 
 let refreshNext = () => {};
 function currentOpt() { return payOptions(CFG).find(o => o.id === ST.pagamento); }
+let autPoll = null;
+function stepAut() {
+  const a = ST.aut || {}, o = currentOpt();
+  if (a.status === "assinado") return `
+  ${headHTML("Passo 04 — Concluído", "Tudo certo.", "Contrato assinado.", "Sua assinatura foi registrada na Autentique e a via assinada chega no seu e-mail. A Malta vai conferir o pagamento e dar início ao seu projeto.")}
+  <div class="card">
+    <div class="sec"><h3>Resumo</h3></div>
+    <div class="kv"><span>Contrato</span><b>${esc(CFG.id)}</b></div>
+    <div class="kv"><span>Contratante</span><b>${esc(ST.cli.nome)}</b></div>
+    <div class="kv"><span>Serviço</span><b>${esc(CFG.servico)}${CFG.projeto ? " · " + esc(CFG.projeto) : ""}</b></div>
+    <div class="kv"><span>Pagamento</span><b>${o ? esc(o.titulo) : "-"}</b></div>
+    ${needsReceipt(o) ? `<div class="kv"><span>Comprovante PIX</span><b>Enviado ✓</b></div>` : ""}
+    <div class="kv"><span>Assinatura</span><b>Autentique ✓</b></div>
+  </div>`;
+  if (a.status === "recusado") return `
+  ${headHTML("Passo 04 — Assinatura", "Assinatura", "recusada.", "Você recusou a assinatura na Autentique. Se foi engano ou quer mudar algo, fale com a Malta.")}
+  <a class="btn primary" href="${waLink(CFG.contratada.whats, `Olá Malta, recusei a assinatura do contrato ${CFG.id} e queria conversar.`)}" target="_blank" rel="noopener">Falar com a Malta</a>`;
+  return `
+  ${headHTML("Passo 04 — Assinatura", "Último passo:", "assine o contrato.", "Revise e assine abaixo. A assinatura é feita pela Autentique, com validade jurídica, e uma cópia chega no seu e-mail.")}
+  <div class="card" style="padding:0;overflow:hidden">
+    ${a.link ? `<iframe src="${esc(a.link)}" title="Assinatura do contrato" style="width:100%;height:78vh;min-height:560px;border:0;background:#fff;display:block" allow="camera; geolocation; clipboard-write"></iframe>` : ""}
+  </div>
+  <div class="reg" style="justify-content:space-between"><span id="autst">Aguardando sua assinatura…</span>${a.link ? `<a class="mini" href="${esc(a.link)}" target="_blank" rel="noopener" style="text-decoration:none">Abrir em nova aba ↗</a>` : ""}</div>`;
+}
+function bindAut() {
+  clearInterval(autPoll);
+  if (!ST.aut || ST.aut.status === "assinado" || ST.aut.status === "recusado") return;
+  const check = async () => {
+    try {
+      const r = await callAut({ action: "status", id: ST.aut.id });
+      if (r.status && r.status !== ST.aut.status) { ST.aut.status = r.status; save(); clearInterval(autPoll); renderClient(); }
+    } catch {}
+  };
+  autPoll = setInterval(() => { if (!document.hidden) check(); }, 10000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && ST.aut && ST.aut.status === "pendente") check(); }, { once: true });
+}
 function stepFinal() {
   const o = currentOpt();
   const extra = needsReceipt(o) && ST.comprovante ? `<div class="kv"><span>Comprovante PIX</span><b>Enviado ✓</b></div>`
@@ -1123,7 +1215,7 @@ async function renderContratos() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return loginForm();
   const { data, error } = await sb.from("contratos_web")
-    .select("id,contrato_id,servico,projeto,total,pagamento,pagamento_id,config,cliente_nome,cliente_doc,cliente_email,cliente_tel,assinado_em,status,ip,comprovante_path,comprovante_nome")
+    .select("id,contrato_id,servico,projeto,total,pagamento,pagamento_id,config,cliente_nome,cliente_doc,cliente_email,cliente_tel,assinado_em,status,ip,comprovante_path,comprovante_nome,autentique_doc_id,autentique_status,autentique_assinado_em,autentique_sandbox")
     .order("created_at", { ascending: false });
   const who = `<div class="ct-meta" style="justify-content:space-between;margin-bottom:16px"><span>Conectado como ${esc(session.user.email)}</span><button class="mini" id="logout">Sair</button></div>`;
   if (error) { $("#cbox").innerHTML = who + `<p class="note">Erro ao carregar: ${esc(error.message)}</p>`; return bindLogout(); }
@@ -1137,6 +1229,11 @@ async function renderContratos() {
       <div class="ct-act"><button class="pill ${r.status === "pago" ? "pago" : ""}" data-st="${r.id}" data-cur="${esc(r.status)}">${r.status === "pago" ? "Pago" : "Aguardando pagamento"}</button>
         <button class="mini" data-pdf="${r.id}">Baixar PDF</button>
         ${r.comprovante_path ? `<button class="mini" data-comp="${esc(r.comprovante_path)}">Ver comprovante</button>` : ""}
+        ${r.autentique_doc_id ? (r.autentique_status === "assinado"
+          ? `<button class="mini" data-autpdf="${r.id}" style="color:#7ed39a;border-color:#7ed39a">Autentique ✓ · PDF assinado</button>`
+          : r.autentique_status === "recusado" ? `<span class="mini" style="color:var(--err)">Recusado na Autentique</span>`
+          : `<button class="mini" data-autst="${r.id}">Autentique: aguardando assinatura · atualizar</button>`) : ""}
+        ${r.autentique_sandbox ? `<span class="mini">teste</span>` : ""}
         <a class="mini" style="text-decoration:none" target="_blank" rel="noopener" href="${waLink(r.cliente_tel, `Olá ${String(r.cliente_nome).split(" ")[0]}, aqui é o Malta! Recebi seu contrato ${r.contrato_id}.`)}">WhatsApp do cliente</a></div>
     </div>`).join("");
   bindLogout();
@@ -1145,8 +1242,19 @@ async function renderContratos() {
     const { data: r, error } = await sb.from("contratos_web").select("contrato_id,config,cliente,assinatura,assinado_em,user_agent,pagamento_id,comprovante_path,comprovante_nome").eq("id", b.dataset.pdf).single();
     b.textContent = "Baixar PDF";
     if (error) return toast("Erro ao gerar o PDF.");
-    const st = { cli: r.cliente, assinatura: r.assinatura, assinadoEm: r.assinado_em, ua: r.user_agent, comprovante: r.comprovante_path ? { nome: r.comprovante_nome } : null };
+    const st = { cli: r.cliente, assinatura: r.assinatura, assinadoEm: r.assinado_em, ua: r.user_agent, comprovante: r.comprovante_path ? { nome: r.comprovante_nome } : null, viaAutentique: !r.assinatura };
     buildPDF(r.config, st, payOptions(r.config).find(o => o.id === r.pagamento_id)).save(`Contrato-${r.contrato_id}-${plain(r.cliente.nome).split(" ")[0]}.pdf`);
+  });
+  document.querySelectorAll("[data-autst]").forEach(b => b.onclick = async () => {
+    b.textContent = "Consultando…";
+    try { const r = await callAut({ action: "status", id: b.dataset.autst }); toast(r.status === "assinado" ? "Assinado!" : r.status === "recusado" ? "Recusado pelo cliente." : "Ainda aguardando assinatura."); }
+    catch (e) { toast(e.message); }
+    renderContratos();
+  });
+  document.querySelectorAll("[data-autpdf]").forEach(b => b.onclick = async () => {
+    const w = window.open("", "_blank");
+    try { const r = await callAut({ action: "admin_pdf", id: b.dataset.autpdf }); if (!r.signed) throw new Error("PDF assinado ainda não disponível."); if (w) w.location = r.signed; else location.href = r.signed; }
+    catch (e) { if (w) w.close(); toast(e.message); }
   });
   document.querySelectorAll("[data-comp]").forEach(b => b.onclick = async () => {
     const w = window.open("", "_blank");

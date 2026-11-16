@@ -28,10 +28,11 @@ App de contrato de desenvolvimento web (landing page, site institucional, loja v
 4. Escolhe a forma de pagamento:
    - **PIX:** aparece o QR Code com o valor certo e ele **precisa anexar o comprovante** (foto, print ou PDF) para liberar a assinatura
    - **Cartão:** vê o valor já com a taxa da maquininha e assina direto
-5. Assina com o dedo/mouse e finaliza
+5. Assina **pela Autentique, dentro do próprio app** (a página de assinatura abre embutida). A Autentique confirma o e-mail do cliente com um código e envia a via assinada por e-mail
+   - Links antigos (`#c...`) continuam com a assinatura desenhada na tela
 
 ### 3. O contrato cai para você (`#admin/contratos`)
-Lista com dados do cliente, forma de pagamento, data/hora, IP, total somado e, em cada contrato: **Baixar PDF**, **Ver comprovante**, **WhatsApp do cliente** e status **Pago / Aguardando pagamento**.
+Lista com dados do cliente, forma de pagamento, data/hora, IP, total somado e, em cada contrato: **Baixar PDF**, **Ver comprovante**, **WhatsApp do cliente**, status **Pago / Aguardando pagamento** e o status na Autentique (**aguardando · atualizar** ou **Autentique ✓ · PDF assinado**).
 
 ---
 
@@ -40,10 +41,12 @@ Lista com dados do cliente, forma de pagamento, data/hora, IP, total somado e, e
 Site estático, sem build — tudo em um arquivo:
 
 ```
-index.html              app inteiro (HTML + CSS + JS)
-assets/logo-malta.png   logo (PNG, usado no PDF)
-assets/logo-malta.svg   logo Malta Business (nova identidade)
-assets/favicon.svg      favicon (+ favicon.ico na raiz)
+index.html                               app inteiro (HTML + CSS + JS)
+assets/logo-malta.png                    logo (PNG, usado no PDF)
+assets/logo-malta.svg                    logo Malta Business (nova identidade)
+assets/favicon.svg                       favicon (+ favicon.ico na raiz)
+supabase/functions/autentique/index.ts   ponte com a API da Autentique (Edge Function)
+.github/workflows/                       tarefa diária que mantém o Supabase ativo
 ```
 
 Bibliotecas via CDN: [jsPDF](https://github.com/parallax/jsPDF) (PDF), [qrcodejs](https://github.com/davidshimjs/qrcodejs) (QR do PIX), [supabase-js](https://github.com/supabase/supabase-js) (banco). Fontes: Archivo + JetBrains Mono (identidade do maltabusiness.vercel.app).
@@ -56,6 +59,7 @@ Bibliotecas via CDN: [jsPDF](https://github.com/parallax/jsPDF) (PDF), [qrcodejs
 | `contratos_web` | contratos assinados (visitante só insere; só o dono lê) |
 | bucket `comprovantes` | comprovantes do PIX (privado; visitante só envia) |
 | `rpc buscar_proposta(email, tel)` | única forma do cliente achar a proposta dele |
+| Edge Function `autentique` | cria o documento na Autentique, consulta se o cliente assinou e entrega o PDF assinado ao dono |
 
 O mesmo projeto também guarda as tabelas `contracts` e `app_config` do app de contrato de fotos — não mexa nelas.
 
@@ -66,6 +70,13 @@ O mesmo projeto também guarda as tabelas `contracts` e `app_config` do app de c
 - Data de registro, IP e status inicial são definidos pelo servidor
 
 ---
+
+### Autentique
+- A chave da API fica **só** em Supabase → Edge Functions → Secrets, com o nome `AUTENTIQUE_TOKEN` (nunca no código)
+- Cada proposta gera no máximo **um** documento na Autentique (reabrir o contrato reaproveita o mesmo)
+- Plano grátis da Autentique: 10 documentos/mês
+- Teste sem gastar cota: abra o site com `?sandbox=1` (ex.: `/?sandbox=1`) — o documento é criado em modo de teste, sem valor jurídico, e a Autentique apaga em alguns dias
+- Para publicar uma nova versão da função: `supabase functions deploy autentique --no-verify-jwt`
 
 ## Primeiro acesso do admin
 1. Abra `/#admin`
