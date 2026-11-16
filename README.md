@@ -75,7 +75,7 @@ O mesmo projeto também guarda as tabelas `contracts` e `app_config` do app de c
 - A chave da API fica **só** em Supabase → Edge Functions → Secrets, com o nome `AUTENTIQUE_TOKEN` (nunca no código)
 - Cada proposta gera no máximo **um** documento na Autentique (reabrir o contrato reaproveita o mesmo)
 - Plano grátis da Autentique: 10 documentos/mês
-- Teste sem gastar cota: abra o site com `?sandbox=1` (ex.: `/?sandbox=1`) — o documento é criado em modo de teste, sem valor jurídico, e a Autentique apaga em alguns dias
+- Teste sem gastar cota: **logado no admin**, abra o site com `?sandbox=1` (ex.: `/?sandbox=1`) e faça o caminho do cliente — o documento sai em modo de teste, sem valor jurídico, e a Autentique apaga em alguns dias. Sem o seu login o `?sandbox=1` é ignorado (ninguém consegue trocar o documento real de um cliente por um de teste)
 - Para publicar uma nova versão da função: `supabase functions deploy autentique --no-verify-jwt`
 
 ## Primeiro acesso do admin

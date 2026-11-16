@@ -13,9 +13,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" integrity="sha384-3zSEDfvllQohrq0PHL1fOXJuC/jSOO34H46t6UQfobFOmxE5BpjjaIJY5F2/bMnU" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.min.js" integrity="sha384-gnyZit14c5lnGcarmA166QQjjJXpucw25ogZXuwH3HxxY904zHkBqmxVpelsPorb" crossorigin="anonymous"></script>
 <style>
 :root{
   --tinta:#0A0A0A; --grafite:#1C1C1B; --papel:#F3F2EF; --lima:#C8FF2E; --cobalto:#2B4BFF; --areia:#D9D4C7;
@@ -349,7 +349,26 @@ async function decodeCfg(str) {
 }
 function newId() {
   const d = new Date(); const p = n => String(n).padStart(2, "0");
-  return `MB-${String(d.getFullYear()).slice(2)}${p(d.getMonth() + 1)}${p(d.getDate())}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+  const rnd = Array.from(crypto.getRandomValues(new Uint8Array(8)), b => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[b % 32]).join("");
+  return `MB-${String(d.getFullYear()).slice(2)}${p(d.getMonth() + 1)}${p(d.getDate())}-${rnd}`;
+}
+function sanitizeCfg(c) {
+  c = c && typeof c === "object" ? c : {};
+  const num = (v, d = 0) => { const n = Number(v); return Number.isFinite(n) ? n : d; };
+  const str = (v, max = 500) => String(v ?? "").slice(0, max);
+  const p = c.pag || {};
+  return {
+    ...c,
+    id: str(c.id, 40).replace(/[^A-Za-z0-9-]/g, "") || "MB-SEM-ID",
+    servico: str(c.servico, 200), projeto: str(c.projeto, 200), obs: str(c.obs, 3000),
+    itens: Array.isArray(c.itens) ? c.itens.map(i => str(i)) : [],
+    total: num(c.total), prazo: Math.round(num(c.prazo, 15)), revisoes: Math.round(num(c.revisoes, 2)),
+    garantia: Math.round(num(c.garantia, 30)), manutencao: num(c.manutencao),
+    hospedagem: c.hospedagem === "incluso" ? "incluso" : "cliente",
+    pag: { vista: !!p.vista, vistaDesc: num(p.vistaDesc), entrada: !!p.entrada, entradaPct: num(p.entradaPct, 50), parcelado: !!p.parcelado,
+      parcelas: Math.round(num(p.parcelas, 3)), cartao: !!p.cartao, cartaoTaxa: num(p.cartaoTaxa), cartaoObs: str(p.cartaoObs || CARTAO_OBS, 300) },
+    contratada: merge(DEFAULT_CONTRATADA, Object.fromEntries(Object.entries(c.contratada || {}).map(([k, v]) => [k, str(v, 200)])))
+  };
 }
 function maskDoc(v) {
   const d = onlyDigits(v).slice(0, 14);
@@ -425,7 +444,12 @@ function payClauseText(cfg, opt) {
   switch (opt.id) {
     case "VISTA": return `O valor total dos serviços é de ${t}. O CONTRATANTE optou pelo pagamento à vista via PIX no valor de ${brl(opt.total)}${cfg.pag.vistaDesc > 0 ? ` (já aplicado desconto de ${cfg.pag.vistaDesc}%)` : ""}, a ser realizado no ato da assinatura deste contrato.`;
     case "ENTRADA": return `O valor total dos serviços é de ${t}. O CONTRATANTE optou pelo pagamento de entrada de ${opt.pct}% (${brl(opt.agora)}) via PIX no ato da assinatura, e o saldo de ${brl(opt.saldo)} na entrega/publicação do projeto, antes da transferência definitiva de acessos.`;
-    case "PARCELADO": return `O valor total dos serviços é de ${t}. O CONTRATANTE optou pelo pagamento em ${opt.parcelas} parcelas de ${brl(opt.parcela)} via PIX, sendo a primeira no ato da assinatura e as demais a cada 30 (trinta) dias.`;
+    case "PARCELADO": {
+      // parcelas arredondadas: a última absorve os centavos para fechar o total exato
+      const ultima = round2(opt.total - opt.parcela * (opt.parcelas - 1));
+      const parc = ultima === opt.parcela ? `${opt.parcelas} parcelas de ${brl(opt.parcela)}` : `${opt.parcelas} parcelas, sendo ${opt.parcelas - 1} de ${brl(opt.parcela)} e a última de ${brl(ultima)}`;
+      return `O valor total dos serviços é de ${t}. O CONTRATANTE optou pelo pagamento em ${parc} via PIX, sendo a primeira no ato da assinatura e as demais a cada 30 (trinta) dias.`;
+    }
     case "CARTAO": return `O valor total dos serviços é de ${t}. O CONTRATANTE optou pelo pagamento via cartão de crédito, no valor de ${brl(opt.total)}${opt.taxa > 0 ? `, já incluída a taxa de ${fmtPct(opt.taxa)}% da operadora do cartão (maquininha)` : ""}, por meio de maquininha ou link de pagamento fornecido pela CONTRATADA. O início dos trabalhos fica condicionado à aprovação da transação.`;
   }
 }
@@ -618,7 +642,7 @@ function stepDados() {
   <div class="card feat">
     <div class="sec"><h3>Sua proposta · ${esc(CFG.servico)}</h3></div>
     <div class="big">${brl(CFG.total)}</div>
-    <div class="note mt12">${CFG.projeto ? `<b style="color:var(--white);font-weight:600">${esc(CFG.projeto)}</b> · ` : ""}Prazo estimado de ${CFG.prazo} dias úteis</div>
+    <div class="note mt12">${CFG.projeto ? `<b style="color:var(--white);font-weight:600">${esc(CFG.projeto)}</b> · ` : ""}Prazo estimado de ${esc(CFG.prazo)} dias úteis</div>
   </div>
   <div class="card">
     <div class="sec"><h3>Identidade e endereço</h3></div>
@@ -673,9 +697,9 @@ function stepContrato() {
     ${CFG.obs ? `<p class="note mt12">${esc(CFG.obs)}</p>` : ""}
     <div class="divider"></div>
     <div class="kv"><span>Serviço</span><b>${esc(CFG.servico)}</b></div>
-    <div class="kv"><span>Prazo estimado</span><b>${CFG.prazo} dias úteis</b></div>
-    <div class="kv"><span>Rodadas de ajustes</span><b>${CFG.revisoes}</b></div>
-    <div class="kv"><span>Garantia pós-entrega</span><b>${CFG.garantia} dias</b></div>
+    <div class="kv"><span>Prazo estimado</span><b>${esc(CFG.prazo)} dias úteis</b></div>
+    <div class="kv"><span>Rodadas de ajustes</span><b>${esc(CFG.revisoes)}</b></div>
+    <div class="kv"><span>Garantia pós-entrega</span><b>${esc(CFG.garantia)} dias</b></div>
     <div class="kv"><span>Valor do investimento</span><b>${brl(CFG.total)}</b></div>
   </div>
   <div class="card">
@@ -725,7 +749,11 @@ const autMode = () => !!(ST && ST.gate);
 const SANDBOX = new URLSearchParams(location.search).has("sandbox"); // ?sandbox=1 → documento de teste na Autentique (não gasta cota)
 async function callAut(body) {
   const { data, error } = await sb.functions.invoke("autentique", { body });
-  if (error) { let m = error.message; try { m = (await error.context.json()).error || m; } catch {} throw new Error(m); }
+  if (error) {
+    let m = "Não foi possível falar com o servidor. Verifique a internet e tente de novo.";
+    try { m = (await error.context.json()).error || m; } catch { console.warn(error); }
+    const e = new Error(m); e.status = error.context?.status || 0; throw e;
+  }
   return data;
 }
 function bindAssinaturaAut() {
@@ -745,7 +773,10 @@ function bindAssinaturaAut() {
       ST.assinadoEm = new Date().toISOString(); ST.ua = navigator.userAgent;
       const st = { ...ST, assinatura: null, viaAutentique: true };
       const pdf = buildPDF(CFG, st, o).output("datauristring").split(",")[1];
-      // registra o contrato (uma vez) e cria o documento na Autentique
+      // registra o contrato (uma vez por forma de pagamento + comprovante) e cria o documento na Autentique
+      const key = `${ST.pagamento}|${ST.comprovante ? ST.comprovante.path : ""}`;
+      if (ST.autRowId && ST.autRowKey !== key) ST.autRowId = null;
+      for (let tentativa = 0; tentativa < 2; tentativa++) {
       if (!ST.autRowId) {
         const id = crypto.randomUUID();
         const { error } = await sb.from("contratos_web").insert({
@@ -757,11 +788,20 @@ function bindAssinaturaAut() {
           comprovante_nome: needsReceipt(o) && ST.comprovante ? ST.comprovante.nome : null
         });
         if (error) throw new Error("Não foi possível registrar o contrato. Tente de novo.");
-        ST.autRowId = id; ST.salvo = true; save();
+        ST.autRowId = id; ST.autRowKey = key; save();
       }
-      const r = await callAut({ action: "criar", id: ST.autRowId, pdf, sandbox: SANDBOX });
-      ST.aut = { id: r.id, link: r.link || null, status: r.status };
-      ST.step = 4; save(); renderClient();
+      try {
+        const r = await callAut({ action: "criar", id: ST.autRowId, pdf, sandbox: SANDBOX });
+        if (r.status !== "assinado" && !okLink(r.link)) throw new Error("Não recebemos o link de assinatura. Tente de novo.");
+        ST.aut = { id: r.id, link: r.link || null, status: r.status };
+        ST.salvo = true; ST.step = 4; save(); renderClient();
+        return;
+      } catch (e) {
+        // registro antigo/expirado: cria um novo e tenta mais uma vez
+        if (e.status === 400 && tentativa === 0) { ST.autRowId = null; save(); continue; }
+        throw e;
+      }
+      }
     } catch (e) {
       toast(e.message || "Não foi possível gerar a assinatura. Tente de novo.");
       btn.disabled = false; btn.textContent = "Ir para a assinatura";
@@ -816,6 +856,7 @@ async function compressImage(file) {
   return await new Promise(r => cv.toBlob(r, "image/jpeg", 0.82));
 }
 async function uploadComprovante(file) {
+  const pg = ST.pagamento;
   if (!sb) throw new Error("Sem conexão com o servidor. Tente de novo.");
   const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
   if (!isPdf && !file.type.startsWith("image/")) throw new Error("Envie uma imagem (foto/print) ou um PDF.");
@@ -830,7 +871,7 @@ async function uploadComprovante(file) {
     if (!error) break;
   }
   if (error) throw new Error("Não foi possível enviar o comprovante. Verifique a internet e tente de novo.");
-  return { path, nome: file.name.slice(0, 120), pagamento: ST.pagamento, enviadoEm: new Date().toISOString() };
+  return { path, nome: file.name.slice(0, 120), pagamento: pg, enviadoEm: new Date().toISOString() };
 }
 function bindAssinatura() {
   document.querySelectorAll(".opt").forEach(el => el.onclick = () => {
@@ -904,21 +945,36 @@ function stepAut() {
   return `
   ${headHTML("Passo 04 — Assinatura", "Último passo:", "assine o contrato.", "Revise e assine abaixo. A assinatura é feita pela Autentique, com validade jurídica, e uma cópia chega no seu e-mail.")}
   <div class="card" style="padding:0;overflow:hidden">
-    ${a.link ? `<iframe src="${esc(a.link)}" title="Assinatura do contrato" style="width:100%;height:78vh;min-height:560px;border:0;background:#fff;display:block" allow="camera; geolocation; clipboard-write"></iframe>` : ""}
+    ${okLink(a.link) ? `<iframe src="${esc(a.link)}" title="Assinatura do contrato" style="width:100%;height:78vh;min-height:560px;border:0;background:#fff;display:block" allow="camera; geolocation; clipboard-write"></iframe>` : ""}
   </div>
-  <div class="reg" style="justify-content:space-between"><span id="autst">Aguardando sua assinatura…</span>${a.link ? `<a class="mini" href="${esc(a.link)}" target="_blank" rel="noopener" style="text-decoration:none">Abrir em nova aba ↗</a>` : ""}</div>`;
+  ${okLink(a.link) ? "" : `<div class="card"><p class="note">Não foi possível abrir a assinatura aqui.</p><button class="btn primary mt12" id="autretry">Tentar de novo</button></div>`}
+  <div class="reg" style="justify-content:space-between"><span id="autst">Aguardando sua assinatura…</span>${okLink(a.link) ? `<a class="mini" href="${esc(a.link)}" target="_blank" rel="noopener" style="text-decoration:none">Abrir em nova aba ↗</a>` : ""}</div>`;
 }
+function okLink(u) {
+  try { const x = new URL(u); return x.protocol === "https:" && (x.hostname === "assina.ae" || x.hostname.endsWith(".autentique.com.br")); } catch { return false; }
+}
+let autVis = null;
 function bindAut() {
   clearInterval(autPoll);
+  if (autVis) { document.removeEventListener("visibilitychange", autVis); autVis = null; }
+  const retry = $("#autretry");
+  if (retry) retry.onclick = () => { ST.aut = null; ST.step = 3; save(); renderClient(); };
   if (!ST.aut || ST.aut.status === "assinado" || ST.aut.status === "recusado") return;
+  let falhas = 0;
   const check = async () => {
     try {
       const r = await callAut({ action: "status", id: ST.aut.id });
+      falhas = 0;
+      const el = $("#autst"); if (el) el.textContent = "Aguardando sua assinatura…";
       if (r.status && r.status !== ST.aut.status) { ST.aut.status = r.status; save(); clearInterval(autPoll); renderClient(); }
-    } catch {}
+    } catch (e) {
+      console.warn(e);
+      if (++falhas >= 3) { const el = $("#autst"); if (el) el.textContent = "Não conseguimos confirmar sua assinatura agora. Se já assinou, está tudo certo: a Malta recebe pela Autentique."; }
+    }
   };
   autPoll = setInterval(() => { if (!document.hidden) check(); }, 10000);
-  document.addEventListener("visibilitychange", () => { if (!document.hidden && ST.aut && ST.aut.status === "pendente") check(); }, { once: true });
+  autVis = () => { if (!document.hidden && ST.aut && ST.aut.status === "pendente") check(); };
+  document.addEventListener("visibilitychange", autVis);
 }
 function stepFinal() {
   const o = currentOpt();
@@ -938,7 +994,7 @@ function stepFinal() {
   </div>
   <div class="card">
     <div class="sec"><h3>Sua cópia</h3></div>
-    <p class="note" style="margin-bottom:14px">Seu contrato já foi registrado com a Malta. Baixe uma cópia em PDF ou envie também pelo WhatsApp, se preferir.</p>
+    <p class="note" style="margin-bottom:14px">${ST.salvo ? "Seu contrato já foi registrado com a Malta." : "Estamos registrando seu contrato com a Malta."} Baixe uma cópia em PDF ou envie também pelo WhatsApp, se preferir.</p>
     <div class="grid">
       <button class="btn primary" id="pdf">Baixar contrato em PDF</button>
       <button class="btn ghost" id="send">Enviar pelo WhatsApp</button>
@@ -1123,7 +1179,7 @@ function readAdmin() {
 function updatePayPreview() {
   readAdmin();
   const ops = payOptions(A);
-  $("#paypreview").innerHTML = ops.length ? "O cliente verá: " + ops.map(o => `<b style="color:var(--text)">${esc(o.titulo)}</b> (${esc(o.valorLabel)})`).join(" · ") : `<span style="color:var(--err)">Ative pelo menos uma forma de pagamento.</span>`;
+  $("#paypreview").innerHTML = ops.length ? "O cliente verá: " + ops.map(o => `<b style="color:var(--white)">${esc(o.titulo)}</b> (${esc(o.valorLabel)})`).join(" · ") : `<span style="color:var(--err)">Ative pelo menos uma forma de pagamento.</span>`;
 }
 function bindAdmin() {
   document.querySelectorAll(".preset").forEach(b => b.onclick = () => {
@@ -1154,8 +1210,9 @@ function bindAdmin() {
     const site = `${location.origin}${location.pathname}`;
     const titulo = `${cfg.servico}${cfg.projeto ? " · " + cfg.projeto : ""}`;
     const btn = $("#gen"); btn.disabled = true;
-    const { error } = await sb.from("propostas").insert({ contrato_id: cfg.id, cliente_email: A.clienteEmail, cliente_tel: A.clienteTel, config: cfg });
-    btn.disabled = false;
+    let error = null;
+    try { ({ error } = await sb.from("propostas").insert({ contrato_id: cfg.id, cliente_email: A.clienteEmail, cliente_tel: A.clienteTel, config: cfg })); }
+    catch (e) { error = e; } finally { btn.disabled = false; }
     if (error) return toast("Não foi possível salvar a proposta: " + error.message);
     const msg = `Olá! Seu contrato com a Malta Business (${titulo}) está pronto.\n\nAcesse ${site} e entre com seu e-mail e seu telefone (os mesmos que você me passou) para ver o contrato, pagar e assinar.`;
     const waCli = waLink(A.clienteTel, msg);
@@ -1189,7 +1246,8 @@ async function openAdmin() {
 async function loadPropostas() {
   const box = $("#plist"); if (!box) return;
   const { data, error } = await sb.from("propostas").select("id,contrato_id,cliente_email,cliente_tel,config,status,created_at").order("created_at", { ascending: false }).limit(30);
-  if (error || !data.length) return box.innerHTML = "";
+  if (error) return box.innerHTML = `<p class="note mt20">Não foi possível carregar as propostas enviadas.</p>`;
+  if (!data.length) return box.innerHTML = "";
   const lbl = { aberta: "Aguardando cliente", assinada: "Assinada", cancelada: "Cancelada" };
   box.innerHTML = `<div class="card mt20"><div class="sec"><h3>Propostas enviadas</h3></div><div class="hist">${data.map(r => `
     <div class="ct"><div class="ct-top"><div><b>${esc(r.config.servico)}${r.config.projeto ? " · " + esc(r.config.projeto) : ""}</b><small>${esc(r.cliente_email)} · ${esc(r.cliente_tel)}</small></div><div class="ct-val">${brl(r.config.total)}</div></div>
@@ -1197,8 +1255,8 @@ async function loadPropostas() {
       ${r.status === "aberta" ? `<button class="mini" data-cancel="${r.id}" style="margin-left:auto">Cancelar</button>` : ""}</div></div>`).join("")}</div></div>`;
   box.querySelectorAll("[data-cancel]").forEach(b => b.onclick = async () => {
     if (!confirm("Cancelar esta proposta? O cliente não vai mais conseguir abrir nem assinar.")) return;
-    const { error } = await sb.from("propostas").update({ status: "cancelada" }).eq("id", b.dataset.cancel);
-    if (error) return toast("Não foi possível cancelar."); loadPropostas();
+    const { data: upd, error } = await sb.from("propostas").update({ status: "cancelada" }).eq("id", b.dataset.cancel).select("id");
+    if (error || !upd?.length) return toast("Não foi possível cancelar. Entre de novo e tente outra vez."); loadPropostas();
   });
 }
 
@@ -1219,12 +1277,20 @@ async function renderContratos() {
     .order("created_at", { ascending: false });
   const who = `<div class="ct-meta" style="justify-content:space-between;margin-bottom:16px"><span>Conectado como ${esc(session.user.email)}</span><button class="mini" id="logout">Sair</button></div>`;
   if (error) { $("#cbox").innerHTML = who + `<p class="note">Erro ao carregar: ${esc(error.message)}</p>`; return bindLogout(); }
-  if (!data.length) { $("#cbox").innerHTML = who + `<div class="card"><p class="note">Nenhum contrato assinado ainda.</p></div>`; return bindLogout(); }
-  const total = data.reduce((a, r) => a + Number(r.total || 0), 0);
-  $("#cbox").innerHTML = who + `<div class="ct-meta" style="margin-bottom:12px"><span>${data.length} contrato(s)</span><span>${brl(total)} em contratos</span><span>${data.filter(r => r.status === "pago").length} marcado(s) como pago</span></div>` +
-    data.map(r => `<div class="ct">
+  // linhas do fluxo Autentique (sem assinatura desenhada) que nunca chegaram a gerar documento = tentativas abandonadas
+  const { data: semDesenho, error: e2 } = await sb.from("contratos_web").select("id").is("assinatura", null);
+  if (e2) console.warn(e2);
+  const fluxoAut = new Set((semDesenho || []).map(r => r.id));
+  const lista = data.filter(r => !fluxoAut.has(r.id) || r.autentique_doc_id);
+  const assinado = r => !fluxoAut.has(r.id) || r.autentique_status === "assinado";
+  const quando = r => fluxoAut.has(r.id) ? (r.autentique_assinado_em ? "Assinado " + fmtDateTime(r.autentique_assinado_em) : "Enviado " + fmtDateTime(r.assinado_em)) : fmtDateTime(r.assinado_em);
+  if (!lista.length) { $("#cbox").innerHTML = who + `<div class="card"><p class="note">Nenhum contrato assinado ainda.</p></div>`; return bindLogout(); }
+  const ok = lista.filter(r => assinado(r) && !r.autentique_sandbox), pend = lista.filter(r => !assinado(r) && r.autentique_status === "pendente");
+  const total = ok.reduce((a, r) => a + Number(r.total || 0), 0);
+  $("#cbox").innerHTML = who + `<div class="ct-meta" style="margin-bottom:12px"><span>${ok.length} assinado(s)</span><span>${brl(total)} em contratos assinados</span>${pend.length ? `<span>${pend.length} aguardando assinatura</span>` : ""}<span>${ok.filter(r => r.status === "pago").length} marcado(s) como pago</span></div>` +
+    lista.map(r => `<div class="ct">
       <div class="ct-top"><div><b>${esc(r.cliente_nome)}</b><small>${esc(r.servico)}${r.projeto ? " · " + esc(r.projeto) : ""}</small></div><div class="ct-val">${brl(r.total)}</div></div>
-      <div class="ct-meta"><span>${esc(r.contrato_id)}</span><span>${fmtDateTime(r.assinado_em)}</span><span>${esc(payLabel(r))}</span></div>
+      <div class="ct-meta"><span>${esc(r.contrato_id)}</span><span>${quando(r)}</span><span>${esc(payLabel(r))}</span></div>
       <div class="ct-meta"><span>${esc(r.cliente_doc)}</span><span>${esc(r.cliente_email)}</span><span>${esc(r.cliente_tel)}</span>${r.ip ? `<span>IP ${esc(r.ip)}</span>` : ""}</div>
       <div class="ct-act"><button class="pill ${r.status === "pago" ? "pago" : ""}" data-st="${r.id}" data-cur="${esc(r.status)}">${r.status === "pago" ? "Pago" : "Aguardando pagamento"}</button>
         <button class="mini" data-pdf="${r.id}">Baixar PDF</button>
@@ -1237,6 +1303,14 @@ async function renderContratos() {
         <a class="mini" style="text-decoration:none" target="_blank" rel="noopener" href="${waLink(r.cliente_tel, `Olá ${String(r.cliente_nome).split(" ")[0]}, aqui é o Malta! Recebi seu contrato ${r.contrato_id}.`)}">WhatsApp do cliente</a></div>
     </div>`).join("");
   bindLogout();
+  // atualiza sozinho os que estão aguardando na Autentique (o cliente pode ter assinado e fechado a página)
+  (async () => {
+    let mudou = false;
+    for (const r of pend.slice(0, 10)) {
+      try { const x = await callAut({ action: "status", id: r.id }); if (x.status && x.status !== r.autentique_status) mudou = true; } catch (e) { console.warn(e); }
+    }
+    if (mudou && location.hash.startsWith("#admin/contratos")) renderContratos();
+  })();
   document.querySelectorAll("[data-pdf]").forEach(b => b.onclick = async () => {
     b.textContent = "Gerando…";
     const { data: r, error } = await sb.from("contratos_web").select("contrato_id,config,cliente,assinatura,assinado_em,user_agent,pagamento_id,comprovante_path,comprovante_nome").eq("id", b.dataset.pdf).single();
@@ -1264,8 +1338,8 @@ async function renderContratos() {
   });
   document.querySelectorAll("[data-st]").forEach(b => b.onclick = async () => {
     const next = b.dataset.cur === "pago" ? "aguardando_pagamento" : "pago";
-    const { error } = await sb.from("contratos_web").update({ status: next }).eq("id", b.dataset.st);
-    if (error) return toast("Não foi possível atualizar.");
+    const { data: upd, error } = await sb.from("contratos_web").update({ status: next }).eq("id", b.dataset.st).select("id");
+    if (error || !upd?.length) return toast("Não foi possível atualizar. Entre de novo e tente outra vez.");
     b.dataset.cur = next; b.classList.toggle("pago", next === "pago"); b.textContent = next === "pago" ? "Pago" : "Aguardando pagamento";
   });
 }
@@ -1364,7 +1438,8 @@ function openProposta(row, email, tel) {
   if (!st.cli.email) st.cli.email = email;
   if (!st.cli.tel) st.cli.tel = maskPhone(tel);
   ls.set("mbweb:" + cfg.id, st);
-  location.hash = "#p=" + encodeURIComponent(cfg.id);
+  const h = "#p=" + encodeURIComponent(cfg.id);
+  if (location.hash === h) route(); else location.hash = h;
 }
 function renderNovaSenha() {
   $("#app").innerHTML = `<div class="wrap fade">${brandHTML("Admin · Nova senha")}
@@ -1408,14 +1483,13 @@ async function route() {
   if (pm) {
     const cfg = ls.get("mbweb:cfg:" + decodeURIComponent(pm[1]), null);
     if (!cfg) return renderGate();
-    CFG = cfg; CFG.contratada = merge(DEFAULT_CONTRATADA, CFG.contratada || {});
+    CFG = sanitizeCfg(cfg);
     ST = ls.get("mbweb:" + CFG.id, null) || { step: 1, cli: { nome: "", doc: "", empresa: "", endereco: "", tel: "", email: "", dominio: "" } };
     return renderClient();
   }
   const m = h.match(/^#c(=?)([A-Za-z0-9_-]+)/);
   if (m) {
-    try { CFG = m[1] ? b64urlDecode(m[2]) : await decodeCfg(m[2]); } catch { return renderEmpty(["Este link", "não é válido."]); }
-    CFG.contratada = merge(DEFAULT_CONTRATADA, CFG.contratada || {});
+    try { CFG = sanitizeCfg(m[1] ? b64urlDecode(m[2]) : await decodeCfg(m[2])); } catch { return renderEmpty(["Este link", "não é válido."]); }
     ST = ls.get("mbweb:" + CFG.id, null) || { step: 1, cli: { nome: "", doc: "", empresa: "", endereco: "", tel: "", email: "", dominio: "" } };
     return renderClient();
   }
